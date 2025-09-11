@@ -9,10 +9,18 @@ Before you can run any of the samples in this repository, you'll need to ensure 
 Please perform the following steps:
 
 1. Download the [`install-azihsm.ps1`](../scripts/install-azihsm.ps1) script from this repository onto your VM.
-2. Download all files from one of [this repository's releases](https://github.com/microsoft/AziHSM-Guest/releases) onto your VM.
-3. Extract/unzip all release files and place them under a single directory on your VM.
-4. Open PowerShell 7 on your VM and navigate to this directory.
-5. Execute the installation script.
+
+   From powershell
+   ``` powershell
+    Invoke-WebRequest -Uri https://raw.githubusercontent.com/microsoft/AziHSM-Guest/main/tools/install-azihsm.ps1  -OutFile .\install-azihsm.ps1
+   ```
+    
+3. Download all files from one of [this repository's releases](https://github.com/microsoft/AziHSM-Guest/releases) onto your VM.
+    ``` powershell
+    
+5. Extract/unzip all release files and place them under a single directory on your VM.
+6. Open PowerShell 7 on your VM and navigate to this directory.
+7. Execute the installation script.
 
 The PowerShell script will search your shell's working directory (`$pwd`) for the necessary binary files.
 If existing AziHSM device driver or KSP binaries are currently installed on your machine, they will be uninstalled, and the new versions will be installed.
