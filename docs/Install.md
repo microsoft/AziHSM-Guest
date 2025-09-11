@@ -6,7 +6,7 @@ Before you can run any of the samples in this repository, you'll need to ensure 
 * AziHSM **KSP** (Key Storage Provider)
 * [SymCrypt](https://github.com/microsoft/SymCrypt) - A dependency of the AziHSM KSP
 
-Please perform the following steps in powershell:
+Please perform the following steps in powershell from with *admin* permissions:
 
 1. Download the [`install-azihsm.ps1`](../scripts/install-azihsm.ps1) script from this repository onto your VM.
 
@@ -30,7 +30,7 @@ Please perform the following steps in powershell:
 6.  Execute the installation script.
    ```powershell
 Set-ExecutionPolicy RemoteSigned
-./install-azihsm.ps1
+.\install-azihsm.ps1
 ```
 
 The PowerShell script will search your shell's working directory (`$pwd`) for the necessary binary files.
