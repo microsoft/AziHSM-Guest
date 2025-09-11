@@ -6,7 +6,7 @@ Before you can run any of the samples in this repository, you'll need to ensure 
 * AziHSM **KSP** (Key Storage Provider)
 * [SymCrypt](https://github.com/microsoft/SymCrypt) - A dependency of the AziHSM KSP
 
-Please perform the following steps:
+Please perform the following steps in powershell:
 
 1. Download the [`install-azihsm.ps1`](../scripts/install-azihsm.ps1) script from this repository onto your VM.
 
@@ -15,12 +15,23 @@ Please perform the following steps:
     Invoke-WebRequest -Uri https://raw.githubusercontent.com/microsoft/AziHSM-Guest/main/tools/install-azihsm.ps1  -OutFile .\install-azihsm.ps1
    ```
     
-3. Download all files from one of [this repository's releases](https://github.com/microsoft/AziHSM-Guest/releases) onto your VM.
+3. Download all KSP from one of [this repository's releases](https://github.com/microsoft/AziHSM-Guest/releases) onto your VM.
     ``` powershell
-    
-5. Extract/unzip all release files and place them under a single directory on your VM.
-6. Open PowerShell 7 on your VM and navigate to this directory.
-7. Execute the installation script.
+    Invoke-WebRequest -Uri "https://github.com/microsoft/AziHSM-Guest/releases/download/v0.1.0/azihsm.ksp.plugin.x86_64.2.0.472.zip" -OutFile ".\azihsm.ksp.plugin.x86_64.2.0.472.zip"
+    ```
+4. Extract/unzip all release files and place them under a single directory on your VM.
+   ```powershell
+   Expand-Archive -Path ".\azihsm.ksp.plugin.x86_64.2.0.472.zip" -DestinationPath "." -Force
+   ```
+5. Download AziHSM guest driver to your VM
+   ```powershell
+   Invoke-WebRequest -Uri "https://github.com/microsoft/AziHSM-Guest/releases/download/v0.1.0/azihsm.windows.vf.driver.x86_64.2.0.486.nupkg" -OutFile ".\azihsm.windows.vf.driver.x86_64.2.0.486.nupkg"
+```
+6.  Execute the installation script.
+   ```powershell
+Set-ExecutionPolicy RemoteSigned
+./install-azihsm.ps1
+```
 
 The PowerShell script will search your shell's working directory (`$pwd`) for the necessary binary files.
 If existing AziHSM device driver or KSP binaries are currently installed on your machine, they will be uninstalled, and the new versions will be installed.
