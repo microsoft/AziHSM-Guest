@@ -11,7 +11,7 @@
 # attempting to use the AziHSM in your applications.
 
 #Requires -RunAsAdministrator
-#Requires -Version 7.0
+#Requires -Version 5.1
 
 $script:ROOT = "$PSScriptRoot"
 $script:PWD = "$pwd"
@@ -64,6 +64,7 @@ function run_cmd
     $pinfo.FileName = "$cmd_path"
     $pinfo.Arguments = "$CmdArgs"
     $pinfo.RedirectStandardOutput = $true
+    $pinfo.UseShellExecute = $false
     $proc = New-Object System.Diagnostics.Process
     $proc.StartInfo = $pinfo
     $proc.Start() | Out-Null
@@ -105,6 +106,65 @@ function query_github_release_files
     return $response
 }
 
+# Function that expands the provided `.zip` or `.nuget` archive.
+# Returns a status code indicating success or failure.
+function expand_archive
+{
+    Param
+    (
+        [Parameter(Mandatory=$true)]
+        [string]$Path,
+        [Parameter(Mandatory=$true)]
+        [string]$DestinationPath
+    )
+
+    # If the destination path already exists, don't proceed any further
+    if (Test-Path -Path "$DestinationPath" -PathType "Container")
+    {
+        $msg = "The destination path (`"$DestinationPath`") already exists."
+        $msg = "$msg Skipping expansion of archive `"$Path`"."
+        Write-Warning "$msg"
+        return $script:STATUS_FAIL
+    }
+
+    # Is the archive a NuGet package (`.nupkg`)? If so, we need to temporarily
+    # rename it to be `.zip`, so it can be processed by the `Expand-Archive`
+    # function. (NuGet packages are zip archives.)
+    $path_new = "$Path"
+    $ext_old = [System.IO.Path]::GetExtension("$path_new")
+    $ext_new = $null
+    if ($ext_old.ToLower() -eq ".nupkg")
+    {
+        $ext_new = ".zip"
+        $path_new = [System.IO.Path]::ChangeExtension("$path_new", "$ext_new")
+        Move-Item -Path "$Path" -Destination "$path_new"
+        Write-Host "Temporarily renamed archive `"$Path`" to: `"$path_new`"."
+    }
+
+    # Otherwise, expand the archive
+    Expand-Archive -Path "$path_new" -DestinationPath "$DestinationPath"
+
+    # Make sure the expanded directory was created
+    if (-not (Test-Path -Path "$DestinationPath" -PathType "Container"))
+    {
+        $msg = "Failed to expand archive `"$path_new`"."
+        $msg = "$msg Destination directory `"$DestinationPath`" could not be found."
+        Write-Error "$msg"
+        return $script:STATUS_FAIL
+    }
+
+    # Change the archive's extension back to its original extension, if
+    # applicable
+    if ($ext_new -ne $null)
+    {
+        [System.IO.Path]::ChangeExtension("$path_new", "$ext_old")
+        Move-Item -Path "$path_new" -Destination "$Path"
+        Write-Host "Restored archive's original name (from: `"$Path`" to: `"$path_new`")."
+    }
+
+    return $script:STATUS_SUCCESS
+}
+
 # Examines the given file path and ensures it points to a directory containing
 # all needed driver files. Returns a value indicating a successful (or failed)
 # verification.
@@ -137,6 +197,39 @@ function verify_driver_files
     return $script:STATUS_SUCCESS
 }
 
+# Helper function that looks for AziHSM driver `.zip` or `.nupkg` archives.
+# All found paths are returned in a list.
+# If none are found, an empty list is returned.
+function find_driver_archives
+{
+    $result = @()
+
+    # Search the working directory for driver archives
+    $paths = @(Get-ChildItem -Path "$script:PWD" -Recurse | Where-Object { `
+        ($_.Extension -in ".zip", ".nupkg") `
+        -and ($_.Name -like "*azihsm*") `
+        -and ($_.Name -like "*driver*") `
+    })
+    $paths_len = $paths.Length
+    if ($paths_len -ge 1)
+    {
+        $msg = "Found $paths_len AziHSM Driver archive(s):"
+        foreach ($path in $paths)
+        {
+            $result += @("$($path.FullName)")
+            $msg = "$msg `"$($path.FullName)`""
+        }
+        Write-Host "$msg"
+    }
+
+    if ($result.Length -eq 0)
+    {
+        Write-Host "Found no AziHSM Driver archives in: `"$script:PWD`"."
+    }
+
+    return $result
+}
+
 # Helper function that looks for the AziHSM driver files in the working
 # directory.
 # The path to the first-found directory containing *all* driver files is
@@ -157,7 +250,7 @@ function find_driver
         # list of directories to search
         foreach ($path in $paths)
         {
-            $dirname = [System.IO.Path]::GetDirectoryName("$path")
+            $dirname = [System.IO.Path]::GetDirectoryName($path.FullName)
             if (-not ($dirs -contains "$dirname"))
             {
                 $dirs += @("$dirname")
@@ -244,7 +337,7 @@ function get_driver_registration
             }
         }
     }
-    
+
     return $null
 }
 
@@ -260,9 +353,32 @@ function main_driver
     Write-Host "--------------------------"
     Write-Host "AziHSM Driver Installation"
     Write-Host "--------------------------"
-    
-    # Was a driver path specified? If not, search for the files locally
+
     $path = $Path
+
+    # Look for any existing driver archives locally
+    if (-not $Path)
+    {
+        $archives = find_driver_archives
+
+        foreach ($arch in $archives)
+        {
+            # Create a directory path at which we'll expand the archive
+            $arch_obj = Get-Item "$arch"
+            $arch_noextension = $arch_obj.BaseName
+            $arch_dir = $arch_obj.DirectoryName
+            $arch_dest = Join-Path -Path "$arch_dir" -ChildPath "${arch_noextension}_EXPANDED"
+
+            # Expand the archive
+            $expand_result = expand_archive -Path "$arch" -DestinationPath "$arch_dest"
+            if ($expand_result -eq $script:STATUS_SUCCESS)
+            {
+                Write-Host "Expanded archive `"$arch`" to destination: `"$arch_dest`"."
+            }
+        }
+    }
+
+    # Was a driver path specified? If not, search for the files locally
     if (-not $path)
     {
         $path = find_driver
@@ -292,13 +408,13 @@ function main_driver
         Write-Error "$msg"
         return $script:STATUS_FAIL
     }
-    
+
     # Is there a driver currently installed?
     $driver_info = get_driver_registration
     if ($driver_info)
     {
         Write-Host "AziHSM driver is already installed as: `"$($driver_info.PublishedName)`"."
-        
+
         # Delete the driver by invoking `pnputil`
         Write-Host "Uninstalling old AziHSM driver (`"$($driver_info.PublishedName)`")..."
         $pnputil_args = "/delete-driver "
@@ -380,6 +496,39 @@ function verify_ksp_file
     return $script:STATUS_SUCCESS
 }
 
+# Helper function that looks for AziHSM KSP `.zip` or `.nupkg` archives.
+# All found paths are returned in a list.
+# If none are found, an empty list is returned.
+function find_ksp_archives
+{
+    $result = @()
+
+    # Search the working directory for KSP archives
+    $paths = @(Get-ChildItem -Path "$script:PWD" -Recurse | Where-Object { `
+        ($_.Extension -in ".zip", ".nupkg") `
+        -and ($_.Name -like "*azihsm*") `
+        -and ($_.Name -like "*ksp*") `
+    })
+    $paths_len = $paths.Length
+    if ($paths_len -ge 1)
+    {
+        $msg = "Found $paths_len AziHSM KSP archive(s):"
+        foreach ($path in $paths)
+        {
+            $result += @("$($path.FullName)")
+            $msg = "$msg `"$($path.FullName)`""
+        }
+        Write-Host "$msg"
+    }
+
+    if ($result.Length -eq 0)
+    {
+        Write-Host "Found no AziHSM KSP archives in: `"$script:PWD`"."
+    }
+
+    return $result
+}
+
 # Helper function that looks for a KSP binary in the working directory.
 # If multiple are found, the path to the first-found DLL is returned.
 # If no KSP DLL is found, `$null` is returned.
@@ -393,12 +542,12 @@ function find_ksp
         $msg = "Found $paths_len AziHSM KSP DLL(s):"
         foreach ($path in $paths)
         {
-            $msg = "$msg `"$path`""
+            $msg = "$msg `"$($path.FullName)`""
         }
         Write-Host "$msg"
 
         # Grab the first result and return its path
-        $result = $paths[0]
+        $result = $paths[0].FullName
         Write-Host "Selecting AziHSM KSP DLL at: `"$result`"."
         return $result
     }
@@ -429,9 +578,32 @@ function main_ksp
     Write-Host "-----------------------"
     Write-Host "AziHSM KSP Installation"
     Write-Host "-----------------------"
-    
-    # Was a KSP path specified? If not, search for the KSP DLL locally
+
     $path = $Path
+
+    # Look for any existing KSP archives locally
+    if (-not $Path)
+    {
+        $archives = find_ksp_archives
+
+        foreach ($arch in $archives)
+        {
+            # Create a directory path at which we'll expand the archive
+            $arch_obj = Get-Item "$arch"
+            $arch_noextension = $arch_obj.BaseName
+            $arch_dir = $arch_obj.DirectoryName
+            $arch_dest = Join-Path -Path "$arch_dir" -ChildPath "${arch_noextension}_EXPANDED"
+
+            # Expand the archive
+            $expand_result = expand_archive -Path "$arch" -DestinationPath "$arch_dest"
+            if ($expand_result -eq $script:STATUS_SUCCESS)
+            {
+                Write-Host "Expanded archive `"$arch`" to destination: `"$arch_dest`"."
+            }
+        }
+    }
+
+    # Was a KSP path specified? If not, search for the KSP DLL locally
     if (-not $path)
     {
         $path = find_ksp
@@ -591,12 +763,12 @@ function find_symcrypt
         $msg = "Found $paths_len SymCrypt DLL(s):"
         foreach ($path in $paths)
         {
-            $msg = "$msg `"$path`""
+            $msg = "$msg `"$($path.FullName)`""
         }
         Write-Host "$msg"
 
         # Grab the first result and return its path
-        $result = $paths[0]
+        $result = $paths[0].FullName
         Write-Host "Selecting SymCrypt DLL at: `"$result`"."
         return $result
     }
@@ -667,7 +839,7 @@ function download_symcrypt
         return $script:STATUS_FAIL
     }
     Write-Host "Extracted zip file contents successfully."
-    
+
     return $script:STATUS_SUCCESS
 }
 
@@ -683,7 +855,7 @@ function main_symcrypt
     Write-Host "---------------------"
     Write-Host "SymCrypt Installation"
     Write-Host "---------------------"
-    
+
     # Is there an existing SymCrypt DLL that is already installed?
     # If so, return early; no action is needed.
     $symcrypt_install_path = Join-Path -Path "$script:SYMCRYPT_INSTALL_DIR" `
@@ -709,7 +881,7 @@ function main_symcrypt
             {
                 return $script:STATUS_FAIL
             }
-    
+
             # Now that the DLL is downloaded, search for it again
             $path = find_symcrypt
             if (-not $path)
