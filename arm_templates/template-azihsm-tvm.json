@@ -1,0 +1,275 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "vmName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the VM."
+      }
+    },
+    "vmSize": {
+      "type": "string",
+      "defaultValue": "Standard_D8as_v7",
+      "metadata": {
+        "description": "Size of the VM."
+      }
+    },
+    "vnetNewOrExisting": {
+      "type": "string",
+      "defaultValue": "new",
+      "allowedValues": [
+        "new",
+        "existing"
+      ],
+      "metadata": {
+        "description": "Determines whether or not a new virtual network should be provisioned"
+      }
+    },
+    "virtualNetworkName": {
+      "type": "string",
+      "defaultValue": "(none)",
+      "metadata": {
+        "description": "Name of the existing VNET"
+      }
+    },
+    "virtualNetworkResourceGroup": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().name]",
+      "metadata": {
+        "description": "Name of the existing VNET resource group"
+      }
+    },
+    "subnetName": {
+      "type": "string",
+      "defaultValue": "subnet-1",
+      "metadata": {
+        "description": "Name of the subnet in the virtual network you want to use"
+      }
+    },
+    "addressPrefix": {
+      "type": "string",
+      "defaultValue": "10.1.16.0/24",
+      "metadata": {
+        "description": "VNET address space"
+      }
+    },
+    "subnetPrefix": {
+      "type": "string",
+      "defaultValue": "10.1.16.0/24",
+      "metadata": {
+        "description": "Sets the subnet of the VM."
+      }
+    },
+    "osImageName": {
+      "type": "string",
+      "defaultValue": "Windows Server 2025 Gen 2",
+      "metadata": {
+        "description": "OS Image for the Virtual Machine"
+      }
+    },
+    "osDiskType": {
+      "type": "string",
+      "defaultValue": "StandardSSD_LRS",
+      "allowedValues": [
+        "Premium_LRS",
+        "Standard_LRS",
+        "StandardSSD_LRS"
+      ],
+      "metadata": {
+        "description": "OS disk type of the VM."
+      }
+    },
+    "diskEncryptionSetId": {
+      "type": "string",
+      "defaultValue": "(none)",
+      "metadata": {
+        "description": "Disk encryption set Id for CVM provisioning with CMK. If is (none), CVM provisioning with PMK"
+      }
+    },
+    "adminUsername": {
+      "type": "string",
+      "metadata": {
+        "description": "Admin user name of the VM."
+      }
+    },
+    "authenticationType": {
+      "type": "string",
+      "defaultValue": "password",
+      "allowedValues": [
+        "password",
+        "sshPublicKey"
+      ],
+      "metadata": {
+        "description": "Type of authentication to use on the Virtual Machine."
+      }
+    },
+    "adminPasswordOrKey": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Password or ssh key for the Virtual Machine."
+      }
+    },
+    "secureBootEnabled": {
+      "type": "string",
+      "defaultValue": "true",
+      "allowedValues": [
+        "true",
+        "false"
+      ],
+      "metadata": {
+        "description": "Secure boot setting of the VM."
+      }
+    }
+  },
+  "variables": {
+    "imageList": {
+      "Windows Server 2025 Gen 2": {
+        "publisher": "microsoftwindowsserver",
+        "offer": "windowsserver",
+        "sku": "2025-datacenter-smalldisk-g2",
+        "version": "latest"
+      }
+    },
+    "imageReference": "[variables('imageList')[parameters('osImageName')]]",
+    "networkInterfaceName": "[concat(parameters('vmName'), '-nic')]",
+    "publicIPAddressName": "[concat(parameters('vmName'), '-ip')]",
+    "networkSecurityGroupName": "[concat(parameters('vmName'), '-nsg')]",
+    "networkSecurityGroupId": "[resourceId(resourceGroup().name, 'Microsoft.Network/networkSecurityGroups', variables('networkSecurityGroupName'))]",
+    "virtualNetworkName": "[if(equals(parameters('virtualNetworkName'), '(none)'), concat(parameters('vmName'), '-vnet'), parameters('virtualNetworkName'))]",
+    "virtualNetworkId": "[resourceId(resourceGroup().name, 'Microsoft.Network/virtualNetworks', variables('virtualNetworkName'))]",
+    "subnetRefExisting": "[resourceId(parameters('virtualNetworkResourceGroup'), 'Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworkName'),  parameters('subnetName'))]",
+    "subnetName": "[concat(parameters('vmName'), '-sub')]",
+    "subnetRefNew": "[concat(variables('virtualNetworkId'), '/subnets/', variables('subnetName'))]",
+    "subnetRef": "[if(equals(parameters('vnetNewOrExisting'), 'new'), variables('subnetRefNew'), variables('subnetRefExisting'))]",
+    "windowsConfiguration": {
+      "enableAutomaticUpdates": "true",
+      "provisionVmAgent": "true"
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Network/publicIPAddresses",
+      "apiVersion": "2019-02-01",
+      "name": "[variables('publicIPAddressName')]",
+      "location": "[resourceGroup().location]",
+      "sku": {
+        "name": "Basic"
+      },
+      "properties": {
+        "publicIpAllocationMethod": "Dynamic"
+      }
+    },
+    {
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "apiVersion": "2019-02-01",
+      "name": "[variables('networkSecurityGroupName')]",
+      "location": "[resourceGroup().location]",
+      "properties": {}
+    },
+    {
+      "condition": "[equals(parameters('vnetNewOrExisting'), 'new')]",
+      "type": "Microsoft.Network/virtualNetworks",
+      "apiVersion": "2019-09-01",
+      "name": "[variables('virtualNetworkName')]",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[variables('networkSecurityGroupId')]"
+      ],
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "[parameters('addressPrefix')]"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "[variables('subnetName')]",
+            "properties": {
+              "addressPrefix": "[parameters('subnetPrefix')]",
+              "networkSecurityGroup": {
+                "id": "[variables('networkSecurityGroupId')]"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Network/networkInterfaces",
+      "apiVersion": "2019-07-01",
+      "name": "[variables('networkInterfaceName')]",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[variables('networkSecurityGroupId')]",
+        "[concat('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]",
+        "[concat('Microsoft.Network/publicIpAddresses/', variables('publicIpAddressName'))]"
+      ],
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipConfigNode",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "subnet": {
+                "id": "[variables('subnetRef')]"
+              },
+              "publicIpAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses',variables('publicIPAddressName'))]"
+              }
+            }
+          }
+        ],
+        "networkSecurityGroup": {
+          "id": "[variables('networkSecurityGroupId')]"
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Compute/virtualMachines",
+      "apiVersion": "2021-07-01",
+      "name": "[parameters('vmName')]",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[concat('Microsoft.Network/networkInterfaces/', variables('networkInterfaceName'))]"
+      ],
+      "tags": {
+        "platformsettings.host_environment.AzureIntegratedHSM": "true"
+      },
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "[parameters('vmSize')]"
+        },
+        "storageProfile": {
+          "osDisk": {
+            "createOption": "fromImage",
+            "managedDisk": {
+              "storageAccountType": "[parameters('osDiskType')]"
+            }
+          },
+          "imageReference": "[variables('imageReference')]"
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('networkInterfaceName'))]"
+            }
+          ]
+        },
+        "osProfile": {
+          "computerName": "[parameters('vmName')]",
+          "adminUsername": "[parameters('adminUsername')]",
+          "adminPassword": "[parameters('adminPasswordOrKey')]",
+          "windowsConfiguration": "[variables('windowsConfiguration')]"
+        },
+        "securityProfile": {
+          "uefiSettings": {
+            "secureBootEnabled": "[parameters('secureBootEnabled')]",
+            "vTpmEnabled": true
+          },
+          "securityType": "TrustedLaunch"
+        }
+      }
+    }
+  ]
+}

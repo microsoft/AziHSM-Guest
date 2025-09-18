@@ -10,7 +10,7 @@
 # your applications on this machine.
 
 #Requires -RunAsAdministrator
-#Requires -Version 7.0
+#Requires -Version 5.1
 
 $script:ROOT = "$PSScriptRoot"
 $script:PWD = "$pwd"
@@ -55,6 +55,7 @@ function run_cmd
     $pinfo.FileName = "$cmd_path"
     $pinfo.Arguments = "$CmdArgs"
     $pinfo.RedirectStandardOutput = $true
+    $pinfo.UseShellExecute = $false
     $proc = New-Object System.Diagnostics.Process
     $proc.StartInfo = $pinfo
     $proc.Start() | Out-Null
@@ -122,7 +123,7 @@ function get_driver_registration
             }
         }
     }
-    
+
     return $null
 }
 
@@ -132,7 +133,7 @@ function main_driver
     Write-Host "---------------------"
     Write-Host "AziHSM Driver Removal"
     Write-Host "---------------------"
-    
+
     # Is there a driver currently installed? If not, return early
     $driver_info = get_driver_registration
     if (-not $driver_info)
@@ -142,7 +143,7 @@ function main_driver
     }
 
     Write-Host "Found AziHSM driver; installed as: `"$($driver_info.PublishedName)`"."
-    
+
     # Delete the driver by invoking `pnputil`
     Write-Host "Uninstalling old AziHSM driver (`"$($driver_info.PublishedName)`")..."
     $pnputil_args = "/delete-driver "
@@ -177,7 +178,7 @@ function main_ksp
     Write-Host "------------------"
     Write-Host "AziHSM KSP Removal"
     Write-Host "------------------"
-    
+
     # Is there an existing AziHSM KSP DLL installed?
     $ksp_install_path = Join-Path -Path "$script:AZIHSM_KSP_INSTALL_DIR" `
                                         -ChildPath "$script:AZIHSM_KSP_FILE_NAME"
@@ -213,7 +214,7 @@ function main_ksp
         # Unregister the KSP
         Write-Host "Unregistering the AziHSM KSP..."
         $null = run_cmd -CmdName "regsvr32" -CmdArgs "/s /u `"$ksp_install_path`""
-        
+
         # Make sure the unregistration succeeded; if it is still registered,
         # then the above command failed.
         if ((is_ksp_registered))
@@ -242,7 +243,7 @@ function main_ksp
         }
         Write-Host "Deleted AziHSM KSP DLL successfully."
     }
- 
+
     return $script:STATUS_SUCCESS
 }
 
