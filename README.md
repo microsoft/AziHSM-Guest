@@ -18,18 +18,18 @@ Specifically, you'll find:
 
 Please see the [AziHSM overview page](./docs/Overview.md) to learn more about AziHSM.
 
-# Getting Started
+## Getting Started
 
-## Deploying a VM with AziHSM Enabled
+### Deploying a VM with AziHSM Enabled
 
 Before you can start using AziHSM, you would need to deploy a VM with AziHSM enabled in Azure. Please see the [how to deploy guide](./docs/HowToDeploy.md) to learn how to deploy an AziHSM-enabled VM.
 
-## Installing AziHSM Dependencies
+### Installing AziHSM Dependencies
 
 To utilize the AziHSM on your Azure VM, you'll need to install the necessary dependencies.
 Please see the [installation guide](./docs/Install.md) for more information (and for steps on how to uninstall).
 
-## Running the Samples
+### Running the Samples
 
 To run the samples, please see [instructions for running samples](./samples/cpp)
 
