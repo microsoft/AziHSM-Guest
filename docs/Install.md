@@ -10,8 +10,8 @@ Please perform the following steps:
 
 1. Download the [`install-azihsm.ps1`](../scripts/install-azihsm.ps1) script from this repository onto your VM.
 2. Download all files from one of [this repository's releases](https://github.com/microsoft/AziHSM-Guest/releases) onto your VM.
-3. Place the downloaded `.zip`/`.nupkg` files under a single directory on your VM.
-4. Open PowerShell (v5.1+) on your VM and navigate PowerShell to this directory.
+3. Place the downloaded `.zip` and `.nupkg` files under a single directory on your VM.
+4. Open PowerShell (v5.1+) with *admin privileges* on your VM and navigate PowerShell to this directory.
 5. Execute the installation script.
 
 The PowerShell script will search your shell's working directory (`$pwd`) for the downloaded files, extract the contents, and locate the needed binary files.
