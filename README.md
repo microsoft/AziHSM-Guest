@@ -31,7 +31,7 @@ Please see the [installation guide](./docs/Install.md) for more information (and
 
 ### Running the Samples
 
-To run the samples, please see [instructions for running samples](./samples/cpp)
+To run the samples, please see [instructions for running samples](./samples/cpp).
 
 
 ## Questions & Feedback
