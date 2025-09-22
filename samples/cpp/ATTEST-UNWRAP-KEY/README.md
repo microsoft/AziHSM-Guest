@@ -12,7 +12,8 @@ This sample demonstrates the AziHSM in the following scenario:
 5. Perform typical workload like hash signing and verification using the
    imported RSA key.
 
-This sample shows the Secure Key Release flow, where user attests AziHSM and securely imports their private key from external services like Azure Key Vault.
+This sample shows the Secure Key Release flow, where user attests AziHSM and securely imports their private key from external services like Azure Key Vault. 
+*Please note that [Microsoft Azure Attestation Service](https://learn.microsoft.com/en-us/azure/attestation/overview) does not support AziHSM attestation as of today, so attestation is mocked. Without the attestation token from Microsoft Azure Attestation Service, we are unable to perform a secure key release from [Azure Manged HSM Service](https://learn.microsoft.com/en-us/azure/key-vault/managed-hsm/overview) and therefore we are mocking that as well.*
 
 Building & Running the Code
 ---------------------------
@@ -54,6 +55,8 @@ You should see output similar to this:
 AziHSM Demonstration:
 Get Quote/Collateral --> Mock Attestation --> Mock Key Wrap and Release --> Import --> Sign/Verify
 ==================================================================================================
+*Please note that [Microsoft Azure Attestation Service](https://learn.microsoft.com/en-us/azure/attestation/overview) does not support AziHSM attestation as of today, so attestation is mocked. Without the attestation token from Microsoft Azure Attestation Service, we are unable to perform a secure key release from [Azure Manged HSM Service](https://learn.microsoft.com/en-us/azure/key-vault/managed-hsm/overview) and therefore we are mocking that as well.*
+
 No key type specified. Defaulting to import RSA key.
 Usage:
     ATTEST-UNWRAP-KEY.exe [rsa|ecdsa]
