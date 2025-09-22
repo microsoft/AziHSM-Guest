@@ -5,8 +5,6 @@ For customers who heavily rely on cryptography and have performance-intensive wo
 This feature is available as part of our [AMD Dasv7, Dadsv7, Easv7 and Eadsv7 series preview](https://techcommunity.microsoft.com/blog/azurecompute/announcing-preview-of-new-azure-dasv7-easv7-fasv7-series-vms-based-on-amd-epyc%E2%84%A2-/4448360).
 Please ensure you have filled out the [preview form](https://forms.office.com/pages/responsepage.aspx?id=v4j5cvGGr0GRqy180BHbRyMSy8VejZVEo6yZykiPSHpUQkI0VFlXTVVVUlhDMVg5SkRYSTFPNEJHQi4u&route=shorturl) and indicated Azure Integrated HSM support.
 
-Note: In order for a VM to use Azure Integrated HSM, please include a tag "platformsettings.host_environment.AzureIntegratedHSM==True" *at the time of deployment*. Adding the tag to the VM after the VM has been deployed will result in the VM not being able to use Azure Integrated HSM.
-
 ## 1. Create a resource group
 
 Create a resource group with the `az group create` command.
@@ -75,4 +73,22 @@ az deployment group create `
   -f ./template-azihsm-tvm.json `
   -p ./parameters-azihsm-tvm.json `
   -p vmName=$vmName
+```
+
+### Option 3 - Azure SDK
+
+There are many different languages supported by the Azure SDK. For this sample, we will use python.
+
+Navigate to [azure_sdk/python](../azure_sdk/python/) and create a python virtual environment and install the Azure SDK:
+
+```powershell
+python -m venv .venv
+.venv/Scripts/activate # only required if deploying from a Windows machine
+pip install -r requirements.txt
+```
+
+Then run the sample script provided. The script includes documentation on what resources are deployed in order to deploy a VM:
+
+```powershell
+python ./sample.py
 ```
