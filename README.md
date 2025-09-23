@@ -2,7 +2,7 @@
 
 Welcome!
 
-Azure Integrated HSM is now available to use in preview on the AMD v7 preview platform with support for our general purpose Dasv7-series, Dadsv7-series, Easv7-series and Eadsv7-series for 8 vCores VMs and above. The Azure Integrated HSM preview will initially have Windows support only.
+Azure Integrated HSM is now available to use in preview on the AMD v7 preview platform with support for our general purpose Dasv7-series, Dadsv7-series, Easv7-series and Eadsv7-series for 8 vCores Trusted Launch VMs and above. The Azure Integrated HSM preview will initially have Windows support only.
 Please sign up for the preview using: https://aka.ms/AMDv7_PublicPreview_Signup and we will enable your subscription to deploy.
  
 Please see the AziHSM overview page to learn more about AziHSM.
