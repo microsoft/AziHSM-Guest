@@ -76,3 +76,21 @@ az deployment group create `
   -p ./parameters-azihsm-tvm.json `
   -p vmName=$vmName
 ```
+
+### Option 3 - Azure SDK
+
+There are many different languages supported by the Azure SDK. For this sample, we will use python.
+
+Navigate to [azure_sdk/python](../azure_sdk/python/) and create a python virtual environment and install the Azure SDK:
+
+```powershell
+python -m venv .venv
+.venv/Scripts/activate # only required if deploying from a Windows machine
+pip install -r requirements.txt
+```
+
+Then run the sample script provided. The script includes documentation on what resources are deployed in order to deploy a VM:
+
+```powershell
+python ./sample.py
+```

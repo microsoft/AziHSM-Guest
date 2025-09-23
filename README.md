@@ -12,6 +12,7 @@ This also houses official releases of the AziHSM binaries, such as the device dr
 Specifically, you'll find:
 
 * [`arm_templates/`](./arm_templates/) - ARM ([Azure Resource Manager](https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/overview)) templates to use when deploying an AziHSM-enabled VM.
+* [`azure_sdk/`](./azure_sdk/) - Sample code that demonstrates how to deploy an AziHSM-enabled VM with the Azure SDK.
 * [`docs/`](./docs/) - Documentation on the AziHSM.
 * [`samples/`](./samples/) - Small command-line applications that demonstrate proper usage of the AziHSM.
 * [`scripts/`](./scripts/) - Helpful shell scripts for installing and working with the AziHSM.
