@@ -12,8 +12,7 @@ This sample demonstrates the AziHSM in the following scenario:
 5. Perform typical workload like hash signing and verification using the
    imported RSA key.
 
-This sample shows the Secure Key Release flow, where user attests AziHSM and securely imports their private key from external services like Azure Key Vault. 
-*Please note that [Microsoft Azure Attestation Service](https://learn.microsoft.com/en-us/azure/attestation/overview) does not support AziHSM attestation as of today, so attestation is mocked. Without the attestation token from Microsoft Azure Attestation Service, we are unable to perform a secure key release from [Azure Manged HSM Service](https://learn.microsoft.com/en-us/azure/key-vault/managed-hsm/overview) and therefore we are mocking that as well.*
+This sample shows the Secure Key Release flow, where user attests AziHSM and securely imports their private key from external services like Azure Key Vault.
 
 Building & Running the Code
 ---------------------------
@@ -55,8 +54,6 @@ You should see output similar to this:
 AziHSM Demonstration:
 Get Quote/Collateral --> Mock Attestation --> Mock Key Wrap and Release --> Import --> Sign/Verify
 ==================================================================================================
-*Please note that [Microsoft Azure Attestation Service](https://learn.microsoft.com/en-us/azure/attestation/overview) does not support AziHSM attestation as of today, so attestation is mocked. Without the attestation token from Microsoft Azure Attestation Service, we are unable to perform a secure key release from [Azure Manged HSM Service](https://learn.microsoft.com/en-us/azure/key-vault/managed-hsm/overview) and therefore we are mocking that as well.*
-
 No key type specified. Defaulting to import RSA key.
 Usage:
     ATTEST-UNWRAP-KEY.exe [rsa|ecdsa]
@@ -90,6 +87,43 @@ Sample finished successfully
 Done Cleaning Up
 ----------------
 ```
+
+</details>
+
+### Understanding the claim buffer
+
+With a successful call to `NCryptCreateClaim`, it will write output to the claim buffer, pointed to by `pbClaimBlob`.
+```c
+SECURITY_STATUS NCryptCreateClaim(
+  [in]           NCRYPT_KEY_HANDLE hSubjectKey,
+  [in, optional] NCRYPT_KEY_HANDLE hAuthorityKey,
+  [in]           DWORD             dwClaimType,
+  [in, optional] NCryptBufferDesc  *pParameterList,
+  [out]          PBYTE             pbClaimBlob,
+  [in]           DWORD             cbClaimBlob,
+  [out]          DWORD             *pcbResult,
+  [in]           DWORD             dwFlags
+);
+```
+
+The output contains binary data with following format
+```
+// (all numbers are in little-endian):
+// - Header
+// - 4 bytes: UINT32, version, currently 1
+// - 4 bytes: UINT32, buffer total length, including header
+// - 4 bytes: UINT32, length of attestation report in bytes
+// - 4 bytes: UINT32, length of certificate in bytes
+// - Payload
+// - N bytes: attestation report
+// - M bytes: certificate
+```
+
+To parse it, you can use the helper function `azihsm_parse_claim` from header file `AziHSM.h`.
+
+The attestation report wil be a binary data with opaque format.  
+The certificate will be a text blob of multiple X.509 certificates in PEM format, separated by newline `\n`.
+
 
 Included Header Files
 ---------------------

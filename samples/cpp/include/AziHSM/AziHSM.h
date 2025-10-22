@@ -32,10 +32,6 @@ const wchar_t* AZIHSM_KSP_NAME = _AZIHSM_KSP_NAME;
 // To access each of these properties, pass the appropriate string into
 // `NCryptGetProperty()`, as the property name.
 
-// The name of the property that holds the AziHSM's device cert chain.
-#define _AZIHSM_PROPERTY_CERT_CHAIN_NAME L"AZIHSM_DEVICE_CERT_CHAIN_PROPERTY"
-const wchar_t* AZIHSM_PROPERTY_CERT_CHAIN_NAME = _AZIHSM_PROPERTY_CERT_CHAIN_NAME;
-
 // The name of the property that holds maximum number of keys the device can
 // store at one time.
 //
@@ -113,3 +109,70 @@ const wchar_t* AZIHSM_BUILTIN_UNWRAP_KEY_NAME = _AZIHSM_BUILTIN_UNWRAP_KEY_NAME;
 #define _AZIHSM_DERIVED_KEY_IMPORT_BLOB_NAME L"AzIHsmDerivedKeyImportBlob"
 const wchar_t* AZIHSM_DERIVED_KEY_IMPORT_BLOB_NAME = _AZIHSM_DERIVED_KEY_IMPORT_BLOB_NAME;
 
+typedef enum _AZIHSM_STATUS
+{
+    AZIHSM_SUCCESS = 0,
+    AZIHSM_FAILURE = 1,  // generic failure
+    AZIHSM_CLAIM_BUFFER_INVALID_FORMAT = 2,
+    AZIHSM_CLAIM_BUFFER_INVALID_LENGTH = 3,
+    AZIHSM_CLAIM_BUFFER_VERSION_UNSUPPORTED = 4,
+} AZIHSM_STATUS;
+
+typedef struct _AziHSMClaimHeader {
+    UINT32 Version;
+    UINT32 TotalLength;
+    UINT32 QuoteLength;
+    UINT32 CertificateLength;
+} AziHSMClaimHeader;
+
+// Parse the claim buffer obtained from NCryptCreateClaim
+// Buffer format (all numbers are in little-endian):
+// - Header
+// - 4 bytes: UINT32, version, currently 1
+// - 4 bytes: UINT32, buffer total length, including header
+// - 4 bytes: UINT32, length of attestation report in bytes
+// - 4 bytes: UINT32, length of certificate in bytes
+// - payload
+// - N bytes: attestation report
+// - M bytes: certificate
+//
+// Outputs: the offsets and sizes of quote and certificate within the claim buffer
+inline AZIHSM_STATUS azihsm_parse_claim(
+    PBYTE bufferClaim,
+    DWORD bufferClaimSize,
+    DWORD* outBufferQuoteOffset,
+    DWORD* outBufferQuoteSize,
+    DWORD* outBufferCertificateOffset,
+    DWORD* outBufferCertificateSize) {
+    size_t headerSize = sizeof(AziHSMClaimHeader);
+
+    if (bufferClaimSize < headerSize)
+    {
+        fprintf(stderr, "Invalid claim buffer format\n");
+        return AZIHSM_CLAIM_BUFFER_INVALID_FORMAT;
+    }
+
+    AziHSMClaimHeader header = *(AziHSMClaimHeader*)bufferClaim;
+    if (header.Version != 1)
+    {
+        fprintf(stderr, "Unsupported claim buffer version: %d\n", header.Version);
+        return AZIHSM_CLAIM_BUFFER_VERSION_UNSUPPORTED;
+    }
+
+    // Verify lengths
+    if ((headerSize + header.QuoteLength + header.CertificateLength) != header.TotalLength ||
+        header.TotalLength != bufferClaimSize)
+    {
+        fprintf(stderr, "Invalid claim buffer lengths\n");
+        return AZIHSM_CLAIM_BUFFER_INVALID_LENGTH;
+    }
+
+    // Return offsets for quote and certificate
+    *outBufferQuoteOffset = headerSize;
+    *outBufferQuoteSize = header.QuoteLength;
+
+    *outBufferCertificateOffset = headerSize + header.QuoteLength;
+    *outBufferCertificateSize = header.CertificateLength;
+
+    return AZIHSM_SUCCESS;
+}
