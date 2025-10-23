@@ -148,14 +148,12 @@ inline AZIHSM_STATUS azihsm_parse_claim(
 
     if (bufferClaimSize < headerSize)
     {
-        fprintf(stderr, "Invalid claim buffer format\n");
         return AZIHSM_CLAIM_BUFFER_INVALID_FORMAT;
     }
 
     AziHSMClaimHeader header = *(AziHSMClaimHeader*)bufferClaim;
     if (header.Version != 1)
     {
-        fprintf(stderr, "Unsupported claim buffer version: %d\n", header.Version);
         return AZIHSM_CLAIM_BUFFER_VERSION_UNSUPPORTED;
     }
 
@@ -163,7 +161,6 @@ inline AZIHSM_STATUS azihsm_parse_claim(
     if ((headerSize + header.QuoteLength + header.CertificateLength) != header.TotalLength ||
         header.TotalLength != bufferClaimSize)
     {
-        fprintf(stderr, "Invalid claim buffer lengths\n");
         return AZIHSM_CLAIM_BUFFER_INVALID_LENGTH;
     }
 
