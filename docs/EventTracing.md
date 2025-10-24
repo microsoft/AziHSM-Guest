@@ -22,6 +22,22 @@ We recommend creating a different trace session for each component:
 
 Upon completion of the script, the output `.etl` file should be created.
 
+### Step 1a (OPTIONAL) - Set KSP Logging Level
+
+The AziHSM KSP has a level-based logging system, where each log message is assigned a level.
+These levels are: `ERROR`, `WARN`, `INFO`, `DEBUG`.
+By default, error, warning, and info messages will be logged; debug messages will *not* be logged.
+However, if you need more information, you can set the `AZIHSMKSP_LOG_LEVEL` environment variable to one of the following values:
+
+```powershell
+# Enable debug log messages
+$env:AZIHSMKSP_LOG_LEVEL = "DEBUG"
+
+# Set back to default
+$env:AZIHSMKSP_LOG_LEVEL = $null
+$env:AZIHSMKSP_LOG_LEVEL = "INFO"
+```
+
 ## Step 2 - Reproduce the Issue
 
 With the tracing sessions active, reproduce the issue you would like to debug.
