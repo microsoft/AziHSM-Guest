@@ -91,6 +91,43 @@ Done Cleaning Up
 ----------------
 ```
 
+</details>
+
+### Understanding the claim buffer
+
+With a successful call to `NCryptCreateClaim`, it will write output to the claim buffer, pointed to by `pbClaimBlob`.
+```c
+SECURITY_STATUS NCryptCreateClaim(
+  [in]           NCRYPT_KEY_HANDLE hSubjectKey,
+  [in, optional] NCRYPT_KEY_HANDLE hAuthorityKey,
+  [in]           DWORD             dwClaimType,
+  [in, optional] NCryptBufferDesc  *pParameterList,
+  [out]          PBYTE             pbClaimBlob,
+  [in]           DWORD             cbClaimBlob,
+  [out]          DWORD             *pcbResult,
+  [in]           DWORD             dwFlags
+);
+```
+
+The output contains binary data with following format
+```
+// (all numbers are in little-endian):
+// - Header
+// - 4 bytes: UINT32, version, currently 1
+// - 4 bytes: UINT32, buffer total length, including header
+// - 4 bytes: UINT32, length of attestation report in bytes
+// - 4 bytes: UINT32, length of certificate in bytes
+// - Payload
+// - N bytes: attestation report
+// - M bytes: certificate
+```
+
+To parse it, you can use the helper function `azihsm_parse_claim` from header file `AziHSM.h`.
+
+The attestation report wil be a binary data with opaque format.  
+The certificate will be a text blob of multiple X.509 certificates in PEM format, separated by newline `\n`.
+
+
 Included Header Files
 ---------------------
 
