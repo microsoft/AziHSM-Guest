@@ -34,6 +34,12 @@ Please see the [installation guide](./docs/Install.md) for more information (and
 
 To run the samples, please see [instructions for running samples](./samples/cpp).
 
+## Code Quality and Safety
+
+The C/C++ code in this repository uses Microsoft Source Code Annotation Language (SAL) to improve code safety and enable better static analysis. SAL annotations help catch common programming errors at compile time and serve as inline documentation for function parameter usage.
+
+For more information about SAL annotations in this repository, see the [SAL Annotations documentation](./docs/SAL_Annotations.md).
+
 
 ## Questions & Feedback
 
