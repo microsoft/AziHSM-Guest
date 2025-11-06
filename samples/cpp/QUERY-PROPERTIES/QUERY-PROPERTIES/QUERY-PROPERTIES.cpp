@@ -16,17 +16,22 @@
 
 #include <windows.h>
 #include <ncrypt.h>
+#include <sal.h>
 
 #include "AziHSM/AziHSM.h"
 
 #include <cstdio>
+#include <new>
 
 // Force the linking of the NCrypt library into this executable, so we can
 // access NCrypt symbols in our code below:
 #pragma comment(lib, "ncrypt.lib")
 
 // Query a property from the provider.
-static SECURITY_STATUS query(NCRYPT_PROV_HANDLE provider, LPCWSTR property, PBYTE* outBuffer, DWORD* outBufferSize) {
+static SECURITY_STATUS query(_In_ NCRYPT_PROV_HANDLE provider, 
+                            _In_ LPCWSTR property, 
+                            _Outptr_result_buffer_(*outBufferSize) PBYTE* outBuffer, 
+                            _Out_ DWORD* outBufferSize) {
     SECURITY_STATUS status = E_FAIL;
 
     DWORD bytes = 0;
@@ -42,7 +47,14 @@ static SECURITY_STATUS query(NCRYPT_PROV_HANDLE provider, LPCWSTR property, PBYT
     }
 
     bufferSize = bytes;
-    buffer = new BYTE[bufferSize];
+    buffer = new(std::nothrow) BYTE[bufferSize];
+    if (buffer == NULL)
+    {
+        fprintf(stderr, "Failed to allocate memory for property buffer.\n");
+        status = E_OUTOFMEMORY;
+        goto cleanup;
+    }
+    
     status = NCryptGetProperty(provider,
         property,
         buffer,
@@ -76,7 +88,7 @@ cleanup:
 // The leaf certificate will be first in the chain.
 // Retrieving this property is useful during device attestation, for more information about attestation,
 // see another sample: ATTEST-UNWRAP-RSA
-static SECURITY_STATUS queryCertChainProperty(NCRYPT_PROV_HANDLE provider) {
+static SECURITY_STATUS queryCertChainProperty(_In_ NCRYPT_PROV_HANDLE provider) {
     SECURITY_STATUS status = E_FAIL;
 
     PBYTE buffer = NULL;
@@ -115,7 +127,7 @@ cleanup:
 // The max storage size of a device is determined by the number of "Resource Group" it has
 // "Resource Group" is determined based on VM size.
 // Each unit of Resource Group can hold up to 4KB of data and 256 keys.
-static SECURITY_STATUS queryMaxStorageSizeProperty(NCRYPT_PROV_HANDLE provider) {
+static SECURITY_STATUS queryMaxStorageSizeProperty(_In_ NCRYPT_PROV_HANDLE provider) {
     SECURITY_STATUS status = E_FAIL;
 
     PBYTE buffer = NULL;
@@ -164,7 +176,7 @@ cleanup:
 // The max key allowed of a device is determined by the number of "Resource Group" it has
 // "Resource Group" is determined based on VM size.
 // Each unit of Resource Group can hold up to 4KB of data and 256 keys.
-static SECURITY_STATUS queryMaxKeyCountProperty(NCRYPT_PROV_HANDLE provider) {
+static SECURITY_STATUS queryMaxKeyCountProperty(_In_ NCRYPT_PROV_HANDLE provider) {
     SECURITY_STATUS status = E_FAIL;
 
     PBYTE buffer = NULL;

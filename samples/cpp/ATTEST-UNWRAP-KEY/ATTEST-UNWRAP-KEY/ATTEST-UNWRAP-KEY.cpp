@@ -26,8 +26,10 @@
 #include <ntstatus.h>
 #include <winerror.h>
 #include <ncrypt.h>
+#include <sal.h>
 
 #include <cstdio>
+#include <new>
 
 #include "AziHSM/AziHSM.h"
 #include "Utils/RsaWrapUtils.h"
@@ -48,13 +50,13 @@ enum KeyType {
 // Quote and Collateral will be in a opaque format
 // Caller is responsible to free the two output buffers
 static SECURITY_STATUS get_quote_and_certificate(
-    NCRYPT_PROV_HANDLE provider,
-    NCRYPT_KEY_HANDLE importKey,
-    char userdata[128],
-    PBYTE* outBufferQuote,
-    DWORD* outBufferQuoteSize,
-    PBYTE* outBufferCertificate,
-    DWORD* outBufferCertificateSize)
+    _In_ NCRYPT_PROV_HANDLE provider,
+    _In_ NCRYPT_KEY_HANDLE importKey,
+    _In_reads_(128) char userdata[128],
+    _Outptr_result_buffer_(*outBufferQuoteSize) PBYTE* outBufferQuote,
+    _Out_ DWORD* outBufferQuoteSize,
+    _Outptr_result_buffer_(*outBufferCertificateSize) PBYTE* outBufferCertificate,
+    _Out_ DWORD* outBufferCertificateSize)
 {
     SECURITY_STATUS status = E_FAIL;
     AZIHSM_STATUS azihsm_status = AZIHSM_FAILURE;
@@ -89,7 +91,13 @@ static SECURITY_STATUS get_quote_and_certificate(
     }
 
     bufferClaimSize = bytesWritten;
-    bufferClaim = new BYTE[bufferClaimSize];
+    bufferClaim = new(std::nothrow) BYTE[bufferClaimSize];
+    if (bufferClaim == NULL)
+    {
+        fprintf(stderr, "Failed to allocate memory for claim buffer.\n");
+        status = E_OUTOFMEMORY;
+        goto cleanup;
+    }
 
     // Get quote and certificate
     status = NCryptCreateClaim(importKey, NULL, 0, &paramBuffers, bufferClaim, bufferClaimSize, &bytesWritten, 0);
@@ -111,11 +119,23 @@ static SECURITY_STATUS get_quote_and_certificate(
     }
 
     // Return copy of quote + certificate so we can free the buffer returned from NCryptCreateClaim
-    *outBufferQuote = new BYTE[bufferQuoteSize];
+    *outBufferQuote = new(std::nothrow) BYTE[bufferQuoteSize];
+    if (*outBufferQuote == NULL)
+    {
+        fprintf(stderr, "Failed to allocate memory for quote buffer.\n");
+        status = E_OUTOFMEMORY;
+        goto cleanup;
+    }
     *outBufferQuoteSize = bufferQuoteSize;
     memcpy(*outBufferQuote, bufferClaim + bufferQuoteOffset, bufferQuoteSize);
 
-    *outBufferCertificate = new BYTE[bufferCertificateSize];
+    *outBufferCertificate = new(std::nothrow) BYTE[bufferCertificateSize];
+    if (*outBufferCertificate == NULL)
+    {
+        fprintf(stderr, "Failed to allocate memory for certificate buffer.\n");
+        status = E_OUTOFMEMORY;
+        goto cleanup;
+    }
     *outBufferCertificateSize = bufferCertificateSize;
     memcpy(*outBufferCertificate, bufferClaim + bufferCertificateOffset, bufferCertificateSize);
 
@@ -134,11 +154,11 @@ cleanup:
 // 1. Verifies the quote and collateral
 // 2. Returns an attestation token
 static HRESULT mock_attestation(
-    PBYTE quoteBuffer,
-    DWORD quoteBufferSize,
-    PBYTE collateralBuffer,
-    DWORD collateralBufferSize,
-    int* token)
+    _In_reads_bytes_(quoteBufferSize) PBYTE quoteBuffer,
+    _In_ DWORD quoteBufferSize,
+    _In_reads_bytes_(collateralBufferSize) PBYTE collateralBuffer,
+    _In_ DWORD collateralBufferSize,
+    _Out_ int* token)
 {
     // Dump quote and collateral size
     printf("Quote: %lu bytes. Collateral: %lu bytes.\n", quoteBufferSize, collateralBufferSize);
@@ -162,12 +182,12 @@ static HRESULT mock_attestation(
 // The importKey handle is only needed for mocking purposes.
 // The external service would typically obtain import key from attestation token.
 static SECURITY_STATUS mock_key_wrap_and_release(
-    KeyType keyType,
-    int attestationToken,
-    char* linkToPrivateKey,
-    NCRYPT_KEY_HANDLE importKey,
-    PBYTE* outBufferKeyBlob,
-    DWORD* outBufferKeyBlobSize)
+    _In_ KeyType keyType,
+    _In_ int attestationToken,
+    _In_z_ char* linkToPrivateKey,
+    _In_ NCRYPT_KEY_HANDLE importKey,
+    _Outptr_result_buffer_(*outBufferKeyBlobSize) PBYTE* outBufferKeyBlob,
+    _Out_ DWORD* outBufferKeyBlobSize)
 {
     SECURITY_STATUS status = E_FAIL;
 
@@ -223,7 +243,13 @@ static SECURITY_STATUS mock_key_wrap_and_release(
     }
 
     bufferImportKeySize = bytesWritten;
-    bufferImportKey = new BYTE[bufferImportKeySize];
+    bufferImportKey = new(std::nothrow) BYTE[bufferImportKeySize];
+    if (bufferImportKey == NULL)
+    {
+        fprintf(stderr, "Failed to allocate memory for import key buffer.\n");
+        status = E_OUTOFMEMORY;
+        goto cleanup;
+    }
 
     status = NCryptExportKey(importKey,
         NULL,
@@ -275,13 +301,13 @@ cleanup:
 //     NCRYPT_ALLOW_SIGNING_FLAG: Allow Sign/Verify
 //     NCRYPT_ALLOW_KEY_IMPORT_FLAG: Allow importing keys
 static SECURITY_STATUS import_wrapped_key(
-    KeyType keyType,
-    NCRYPT_PROV_HANDLE provider,
-    NCRYPT_KEY_HANDLE importKey,
-    PBYTE bufferKeyBlob,
-    DWORD bufferKeyBlobSize,
-    DWORD keyUsage,
-    NCRYPT_KEY_HANDLE* outImportedKey)
+    _In_ KeyType keyType,
+    _In_ NCRYPT_PROV_HANDLE provider,
+    _In_ NCRYPT_KEY_HANDLE importKey,
+    _In_reads_bytes_(bufferKeyBlobSize) PBYTE bufferKeyBlob,
+    _In_ DWORD bufferKeyBlobSize,
+    _In_ DWORD keyUsage,
+    _Out_ NCRYPT_KEY_HANDLE* outImportedKey)
 {
     SECURITY_STATUS status = E_FAIL;
 
@@ -361,13 +387,17 @@ cleanup:
 // Use the imported key to sign something and verify
 // Use RSA Key
 static SECURITY_STATUS sign_verify_rsa(
-    NCRYPT_KEY_HANDLE importedKey,
-    DWORD bufferHashSize,
-    LPCWSTR hashAlgId,
-    PBYTE* outBufferSignature,
-    DWORD* outBufferSignatureSize)
+    _In_ NCRYPT_KEY_HANDLE importedKey,
+    _In_ DWORD bufferHashSize,
+    _In_ LPCWSTR hashAlgId,
+    _Outptr_result_buffer_(*outBufferSignatureSize) PBYTE* outBufferSignature,
+    _Out_ DWORD* outBufferSignatureSize)
 {
     SECURITY_STATUS status = E_FAIL;
+    PBYTE bufferHash = NULL;
+    PBYTE bufferSignature = NULL;
+    DWORD bufferSignatureSize = 0;
+    DWORD bytes = 0;
 
     // For padding, we can either use
     DWORD flagPadding = NCRYPT_PAD_PKCS1_FLAG;
@@ -377,14 +407,16 @@ static SECURITY_STATUS sign_verify_rsa(
     // DWORD flagPadding = NCRYPT_PAD_PSS_FLAG;
     // BCRYPT_PSS_PADDING_INFO paddingInfo = { hashAlgId , <random number less than bufferHashSize>};
 
-    PBYTE bufferHash = new BYTE[bufferHashSize];
+    bufferHash = new(std::nothrow) BYTE[bufferHashSize];
+    if (bufferHash == NULL)
+    {
+        fprintf(stderr, "Failed to allocate memory for hash buffer.\n");
+        status = E_OUTOFMEMORY;
+        goto cleanup;
+    }
     memset(bufferHash, 0, bufferHashSize);
     // Use pre-defined hash for easy verification
     memcpy(bufferHash, MESSAGE_RSA, sizeof(MESSAGE_RSA));
-
-    PBYTE bufferSignature = NULL;
-    DWORD bufferSignatureSize = 0;
-    DWORD bytes = 0;
 
     status = NCryptSignHash(importedKey,
         &paddingInfo,
@@ -401,7 +433,13 @@ static SECURITY_STATUS sign_verify_rsa(
     }
 
     bufferSignatureSize = bytes;
-    bufferSignature = new BYTE[bufferSignatureSize];
+    bufferSignature = new(std::nothrow) BYTE[bufferSignatureSize];
+    if (bufferSignature == NULL)
+    {
+        fprintf(stderr, "Failed to allocate memory for signature buffer.\n");
+        status = E_OUTOFMEMORY;
+        goto cleanup;
+    }
     status = NCryptSignHash(importedKey,
         &paddingInfo,
         bufferHash,
@@ -457,20 +495,26 @@ cleanup:
 // Use ECDSA Key
 // The signature is in raw format (r s), not ASN.1 encoded
 static SECURITY_STATUS sign_verify_ecdsa(
-    NCRYPT_KEY_HANDLE importedKey,
-    DWORD bufferHashSize,
-    PBYTE* outBufferSignature,
-    DWORD* outBufferSignatureSize)
+    _In_ NCRYPT_KEY_HANDLE importedKey,
+    _In_ DWORD bufferHashSize,
+    _Outptr_result_buffer_(*outBufferSignatureSize) PBYTE* outBufferSignature,
+    _Out_ DWORD* outBufferSignatureSize)
 {
     SECURITY_STATUS status = E_FAIL;
-
-    PBYTE bufferHash = new BYTE[bufferHashSize];
-    memset(bufferHash, 0, bufferHashSize);
-    memcpy(bufferHash, MESSAGE_ECDSA, sizeof(MESSAGE_ECDSA));
-
+    PBYTE bufferHash = NULL;
     PBYTE bufferSignature = NULL;
     DWORD bufferSignatureSize = 0;
     DWORD bytes = 0;
+
+    bufferHash = new(std::nothrow) BYTE[bufferHashSize];
+    if (bufferHash == NULL)
+    {
+        fprintf(stderr, "Failed to allocate memory for hash buffer.\n");
+        status = E_OUTOFMEMORY;
+        goto cleanup;
+    }
+    memset(bufferHash, 0, bufferHashSize);
+    memcpy(bufferHash, MESSAGE_ECDSA, sizeof(MESSAGE_ECDSA));
 
     status = NCryptSignHash(importedKey,
         NULL,
@@ -487,7 +531,13 @@ static SECURITY_STATUS sign_verify_ecdsa(
     }
 
     bufferSignatureSize = bytes;
-    bufferSignature = new BYTE[bufferSignatureSize];
+    bufferSignature = new(std::nothrow) BYTE[bufferSignatureSize];
+    if (bufferSignature == NULL)
+    {
+        fprintf(stderr, "Failed to allocate memory for signature buffer.\n");
+        status = E_OUTOFMEMORY;
+        goto cleanup;
+    }
     status = NCryptSignHash(importedKey,
         NULL,
         bufferHash,
@@ -541,7 +591,7 @@ cleanup:
 
 // Helper function that determines which Key Type to use
 // during execution, based on the command-line arguments provided by the user.
-static KeyType parse_key_type(int argc, char** argv)
+static KeyType parse_key_type(_In_ int argc, _In_reads_(argc) char** argv)
 {
     KeyType result = KEY_TYPE_RSA;
 
@@ -561,7 +611,13 @@ static KeyType parse_key_type(int argc, char** argv)
 
         // Make a copy of the argument string, and convert it to lowercase
         size_t str_len = std::strlen(arg);
-        char* str = new char[str_len + 1];
+        char* str = new(std::nothrow) char[str_len + 1];
+        if (str == NULL)
+        {
+            // Continue processing other arguments if memory allocation fails
+            continue;
+        }
+        
         for (size_t j = 0; j < str_len; j++)
         {
             str[j] = std::tolower(static_cast<unsigned char>(arg[j]));
@@ -584,7 +640,7 @@ static KeyType parse_key_type(int argc, char** argv)
     return result;
 }
 
-int main(int argc, char** argv)
+int main(_In_ int argc, _In_reads_(argc) char** argv)
 {
     printf("\n\nAziHSM Demonstration:\nGet Quote/Collateral --> Mock Attestation --> Mock Key Wrap and Release --> Import "
         "--> Sign/Verify\n");

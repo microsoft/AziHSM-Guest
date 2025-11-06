@@ -32,7 +32,9 @@
 #include <ntstatus.h>
 #include <winerror.h>
 #include <ncrypt.h>
+#include <sal.h>
 
+#include <new>
 #include "AziHSM/AziHSM.h"
 #include "Utils/Utils.h"
 
@@ -52,9 +54,9 @@ typedef enum _KDFType
 // ============================= NCrypt Helpers ============================= //
 // Helper function that invokes AziHSM (via NCrypt) to generate an ECC key
 // pair.
-static SECURITY_STATUS create_ecdh_key(NCRYPT_PROV_HANDLE provider,
-                                       PCWSTR ecc_curve_name,
-                                       NCRYPT_KEY_HANDLE* result)
+static SECURITY_STATUS create_ecdh_key(_In_ NCRYPT_PROV_HANDLE provider,
+                                       _In_ PCWSTR ecc_curve_name,
+                                       _Out_ NCRYPT_KEY_HANDLE* result)
 {
     SECURITY_STATUS status = S_OK;
 
@@ -130,9 +132,9 @@ cleanup:
 
 // Helper function that invokes AziHSM (via NCrypt) to export an ECDH key,
 // accessible through the given NCrypt key handle.
-static SECURITY_STATUS export_ecdh_key(NCRYPT_KEY_HANDLE key,
-                                       BYTE** result,
-                                       DWORD* result_len)
+static SECURITY_STATUS export_ecdh_key(_In_ NCRYPT_KEY_HANDLE key,
+                                       _Outptr_result_buffer_(*result_len) BYTE** result,
+                                       _Out_ DWORD* result_len)
 {
     SECURITY_STATUS status = S_OK;
     BYTE* buffer = NULL;
@@ -160,7 +162,14 @@ static SECURITY_STATUS export_ecdh_key(NCRYPT_KEY_HANDLE key,
     
     // Allocate a buffer of the specified size, then invoke `NCryptExportKey()`
     // a second time, to store the exported key.
-    buffer = new BYTE[buffer_len];
+    buffer = new(std::nothrow) BYTE[buffer_len];
+    if (buffer == NULL)
+    {
+        fprintf(stderr, "Failed to allocate memory for export buffer.\n");
+        status = E_OUTOFMEMORY;
+        goto cleanup;
+    }
+    
     status = NCryptExportKey(
         key,
         NULL,
@@ -204,10 +213,10 @@ cleanup:
 
 // Helper function that invokes AziHSM (via NCrypt) to import a public ECDH
 // key. The resulting key handle is stored in `*result`.
-static SECURITY_STATUS import_ecdh_key(NCRYPT_PROV_HANDLE provider,
-                                       BYTE* buffer,
-                                       DWORD buffer_len,
-                                       NCRYPT_KEY_HANDLE* result)
+static SECURITY_STATUS import_ecdh_key(_In_ NCRYPT_PROV_HANDLE provider,
+                                       _In_reads_bytes_(buffer_len) BYTE* buffer,
+                                       _In_ DWORD buffer_len,
+                                       _Out_ NCRYPT_KEY_HANDLE* result)
 {
     SECURITY_STATUS status = S_OK;
 
@@ -245,9 +254,9 @@ cleanup:
 // Helper function that invokes AziHSM (via NCrypt) with the handles to a
 // private ECDH key and a public ECDH key to generate a secret.
 // The resulting secret handle is stored in `*result`.
-static SECURITY_STATUS generate_secret(NCRYPT_KEY_HANDLE private_ecdh_key,
-                                       NCRYPT_KEY_HANDLE public_ecdh_key,
-                                       NCRYPT_SECRET_HANDLE* result)
+static SECURITY_STATUS generate_secret(_In_ NCRYPT_KEY_HANDLE private_ecdh_key,
+                                       _In_ NCRYPT_KEY_HANDLE public_ecdh_key,
+                                       _Out_ NCRYPT_SECRET_HANDLE* result)
 {
     SECURITY_STATUS status = S_OK;
 
@@ -280,15 +289,15 @@ cleanup:
 
 // Helper function that invokes AziHSM (via NCrypt) with the given secret
 // handle to derive an AES key, using KBKDF.
-static SECURITY_STATUS derive_aes_key_kbkdf(NCRYPT_PROV_HANDLE provider,
-                                            NCRYPT_SECRET_HANDLE secret,
-                                            size_t key_bit_len,
-                                            PCWSTR hash_alg,
-                                            const wchar_t* context,
-                                            const size_t context_len,
-                                            const wchar_t* label,
-                                            const size_t label_len,
-                                            NCRYPT_KEY_HANDLE* result)
+static SECURITY_STATUS derive_aes_key_kbkdf(_In_ NCRYPT_PROV_HANDLE provider,
+                                            _In_ NCRYPT_SECRET_HANDLE secret,
+                                            _In_ size_t key_bit_len,
+                                            _In_ PCWSTR hash_alg,
+                                            _In_reads_(context_len) const wchar_t* context,
+                                            _In_ const size_t context_len,
+                                            _In_reads_(label_len) const wchar_t* label,
+                                            _In_ const size_t label_len,
+                                            _Out_ NCRYPT_KEY_HANDLE* result)
 {
     SECURITY_STATUS status = S_OK;
     NCRYPT_KEY_HANDLE key = NULL;
@@ -364,7 +373,14 @@ static SECURITY_STATUS derive_aes_key_kbkdf(NCRYPT_PROV_HANDLE provider,
 
     // Allocate a buffer of the specified size, then invoke `NCryptDeriveKey()`
     // a second time, to store the output data.
-    derived_key_buffer = new BYTE[derived_key_buffer_len];
+    derived_key_buffer = new(std::nothrow) BYTE[derived_key_buffer_len];
+    if (derived_key_buffer == NULL)
+    {
+        fprintf(stderr, "Failed to allocate memory for derived key buffer.\n");
+        status = E_OUTOFMEMORY;
+        goto cleanup;
+    }
+    
     status = NCryptDeriveKey(
         secret,
         kdf_alg,
@@ -442,15 +458,15 @@ cleanup:
 
 // Helper function that invokes AziHSM (via NCrypt) with the given secret
 // handle to derive an AES key, using HKDF.
-static SECURITY_STATUS derive_aes_key_hkdf(NCRYPT_PROV_HANDLE provider,
-                                           NCRYPT_SECRET_HANDLE secret,
-                                           size_t key_bit_len,
-                                           PCWSTR hash_alg,
-                                           const wchar_t* info,
-                                           const size_t info_len,
-                                           const wchar_t* salt,
-                                           const size_t salt_len,
-                                           NCRYPT_KEY_HANDLE* result)
+static SECURITY_STATUS derive_aes_key_hkdf(_In_ NCRYPT_PROV_HANDLE provider,
+                                           _In_ NCRYPT_SECRET_HANDLE secret,
+                                           _In_ size_t key_bit_len,
+                                           _In_ PCWSTR hash_alg,
+                                           _In_reads_(info_len) const wchar_t* info,
+                                           _In_ const size_t info_len,
+                                           _In_reads_(salt_len) const wchar_t* salt,
+                                           _In_ const size_t salt_len,
+                                           _Out_ NCRYPT_KEY_HANDLE* result)
 {
     SECURITY_STATUS status = S_OK;
     NCRYPT_KEY_HANDLE key = NULL;
@@ -526,7 +542,14 @@ static SECURITY_STATUS derive_aes_key_hkdf(NCRYPT_PROV_HANDLE provider,
 
     // Allocate a buffer of the specified size, then invoke `NCryptDeriveKey()`
     // a second time, to store the output data.
-    derived_key_buffer = new BYTE[derived_key_buffer_len];
+    derived_key_buffer = new(std::nothrow) BYTE[derived_key_buffer_len];
+    if (derived_key_buffer == NULL)
+    {
+        fprintf(stderr, "Failed to allocate memory for derived key buffer.\n");
+        status = E_OUTOFMEMORY;
+        goto cleanup;
+    }
+    
     status = NCryptDeriveKey(
         secret,
         kdf_alg,
@@ -609,12 +632,12 @@ cleanup:
 //
 // * `KDF_TYPE_KBKDF` --> `derive_aes_key_kbkdf()`
 // * `KDF_TYPE_HKDF` --> `derive_aes_key_hkdf()`
-static SECURITY_STATUS derive_aes_key(NCRYPT_PROV_HANDLE provider,
-                                      NCRYPT_SECRET_HANDLE secret,
-                                      size_t key_bit_len,
-                                      PCWSTR hash_alg,
-                                      KDFType kdf,
-                                      NCRYPT_KEY_HANDLE* result)
+static SECURITY_STATUS derive_aes_key(_In_ NCRYPT_PROV_HANDLE provider,
+                                      _In_ NCRYPT_SECRET_HANDLE secret,
+                                      _In_ size_t key_bit_len,
+                                      _In_ PCWSTR hash_alg,
+                                      _In_ KDFType kdf,
+                                      _Out_ NCRYPT_KEY_HANDLE* result)
 {
     SECURITY_STATUS status = S_OK;
     NCRYPT_KEY_HANDLE key = NULL;
@@ -699,13 +722,13 @@ cleanup:
 //
 // The resulting ciphertext is stored in a new, allocated buffer, whose address
 // is stored in `*result`, and whose length is stored in `*result_len`.
-static SECURITY_STATUS encrypt_aes_cbc(NCRYPT_KEY_HANDLE key,
-                                       BYTE* plaintext,
-                                       size_t plaintext_len,
-                                       BYTE* iv,
-                                       size_t iv_len,
-                                       BYTE** result,
-                                       size_t* result_len)
+static SECURITY_STATUS encrypt_aes_cbc(_In_ NCRYPT_KEY_HANDLE key,
+                                       _In_reads_bytes_(plaintext_len) BYTE* plaintext,
+                                       _In_ size_t plaintext_len,
+                                       _In_reads_bytes_(iv_len) BYTE* iv,
+                                       _In_ size_t iv_len,
+                                       _Outptr_result_buffer_(*result_len) BYTE** result,
+                                       _Out_ size_t* result_len)
 {
     SECURITY_STATUS status = S_OK;
 
@@ -744,7 +767,13 @@ static SECURITY_STATUS encrypt_aes_cbc(NCRYPT_KEY_HANDLE key,
 
     // Allocate a buffer for the encrypted data, using the size we just
     // received from the first call to `NCryptEncrypt()`.
-    ciphertext = new BYTE[(size_t) ciphertext_len];
+    ciphertext = new(std::nothrow) BYTE[(size_t) ciphertext_len];
+    if (ciphertext == NULL)
+    {
+        fprintf(stderr, "Failed to allocate memory for ciphertext buffer.\n");
+        status = E_OUTOFMEMORY;
+        goto cleanup;
+    }
 
     // Call `NCryptEncrypt()` a second time to compute the ciphertext and store
     // the result in our buffer.
@@ -792,13 +821,13 @@ cleanup:
 //
 // The resulting plaintext is stored in a new, allocated buffer, whose address
 // is stored in `*result`, and whose length is stored in `*result_len`.
-static SECURITY_STATUS decrypt_aes_cbc(NCRYPT_KEY_HANDLE key,
-                                       BYTE* ciphertext,
-                                       size_t ciphertext_len,
-                                       BYTE* iv,
-                                       size_t iv_len,
-                                       BYTE** result,
-                                       size_t* result_len)
+static SECURITY_STATUS decrypt_aes_cbc(_In_ NCRYPT_KEY_HANDLE key,
+                                       _In_reads_bytes_(ciphertext_len) BYTE* ciphertext,
+                                       _In_ size_t ciphertext_len,
+                                       _In_reads_bytes_(iv_len) BYTE* iv,
+                                       _In_ size_t iv_len,
+                                       _Outptr_result_buffer_(*result_len) BYTE** result,
+                                       _Out_ size_t* result_len)
 {
     SECURITY_STATUS status = S_OK;
 
@@ -837,7 +866,13 @@ static SECURITY_STATUS decrypt_aes_cbc(NCRYPT_KEY_HANDLE key,
 
     // Allocate a buffer for the decrypted data, using the size we just
     // received from the first call to `NCryptDecrypt()`.
-    plaintext = new BYTE[(size_t) plaintext_len];
+    plaintext = new(std::nothrow) BYTE[(size_t) plaintext_len];
+    if (plaintext == NULL)
+    {
+        fprintf(stderr, "Failed to allocate memory for plaintext buffer.\n");
+        status = E_OUTOFMEMORY;
+        goto cleanup;
+    }
 
     // Call `NCryptEncrypt()` a second time to compute the plaintext and store
     // the result in our buffer.
@@ -884,7 +919,7 @@ cleanup:
 // ================================== Main ================================== //
 // Helper function that determines which KDF (Key Derivation Function) to use
 // during execution, based on the command-line arguments provided by the user.
-static KDFType parse_kdf_type(int argc, char** argv)
+static KDFType parse_kdf_type(_In_ int argc, _In_reads_(argc) char** argv)
 {
     KDFType result = KDF_TYPE_KBKDF;
     
@@ -897,7 +932,13 @@ static KDFType parse_kdf_type(int argc, char** argv)
 
         // Make a copy of the argument string, and convert it to lowercase
         size_t str_len = std::strlen(arg);
-        char* str = new char[str_len + 1];
+        char* str = new(std::nothrow) char[str_len + 1];
+        if (str == NULL)
+        {
+            // Continue processing other arguments if memory allocation fails
+            continue;
+        }
+        
         for (size_t j = 0; j < str_len; j++)
         {
             str[j] = std::tolower(static_cast<unsigned char>(arg[j]));
@@ -921,7 +962,7 @@ static KDFType parse_kdf_type(int argc, char** argv)
 }
 
 // Main function. Program execution begins and ends here.
-int main(int argc, char** argv)
+int main(_In_ int argc, _In_reads_(argc) char** argv)
 {
     printf("AziHSM Demonstration: ECDH Generate --> ECDH Exchange --> KDF AES --> AES-CBC Enc/Dec\n");
     printf("=====================================================================================\n");

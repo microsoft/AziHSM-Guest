@@ -48,6 +48,12 @@ const wchar_t* AZIHSM_PROPERTY_MAX_KEY_COUNT_NAME = _AZIHSM_PROPERTY_MAX_KEY_COU
 #define _AZIHSM_PROPERTY_MAX_STORAGE_SIZE_NAME L"AZIHSM_DEVICE_MAX_STORAGE_SIZE_PROPERTY"
 const wchar_t* AZIHSM_PROPERTY_MAX_STORAGE_SIZE_NAME = _AZIHSM_PROPERTY_MAX_STORAGE_SIZE_NAME;
 
+// The name of the property that holds the certificate chain for the AziHSM device.
+//
+// The property's value is a certificate chain in DER format.
+#define _AZIHSM_PROPERTY_CERT_CHAIN_NAME L"AZIHSM_DEVICE_CERT_CHAIN_PROPERTY"
+const wchar_t* AZIHSM_PROPERTY_CERT_CHAIN_NAME = _AZIHSM_PROPERTY_CERT_CHAIN_NAME;
+
 
 // ============================= Key Properties ============================= //
 // This section defines strings that represent the names of key-specific
@@ -165,11 +171,11 @@ inline AZIHSM_STATUS azihsm_parse_claim(
     }
 
     // Return offsets for quote and certificate
-    *outBufferQuoteOffset = headerSize;
-    *outBufferQuoteSize = header.QuoteLength;
+    *outBufferQuoteOffset = static_cast<DWORD>(headerSize);
+    *outBufferQuoteSize = static_cast<DWORD>(header.QuoteLength);
 
-    *outBufferCertificateOffset = headerSize + header.QuoteLength;
-    *outBufferCertificateSize = header.CertificateLength;
+    *outBufferCertificateOffset = static_cast<DWORD>(headerSize + header.QuoteLength);
+    *outBufferCertificateSize = static_cast<DWORD>(header.CertificateLength);
 
     return AZIHSM_SUCCESS;
 }

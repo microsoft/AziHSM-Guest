@@ -13,8 +13,10 @@
 #undef WIN32_NO_STATUS
 #include <ntstatus.h>
 #include <winerror.h>
+#include <sal.h>
 
 #include <cstdio>
+#include <new>
 
 #define AES_KEY_WRAP_PAD_IV 0xA65959A6 // KWP
 #define AES_KEY_WRAP_PAD_AES_BLOCK_LENGTH 16
@@ -24,7 +26,9 @@
 const DWORD AES_KEY_BIT_SIZE = 256;
 
 // Helper function to create random AES key in BCrypt.
-static NTSTATUS CreateAesKey(BCRYPT_KEY_HANDLE* outAesKey, PBYTE* outBufferAesKey, DWORD* outBufferAesKeySize)
+static NTSTATUS CreateAesKey(_Out_ BCRYPT_KEY_HANDLE* outAesKey, 
+                            _Outptr_result_buffer_(*outBufferAesKeySize) PBYTE* outBufferAesKey, 
+                            _Out_ DWORD* outBufferAesKeySize)
 {
     NTSTATUS status = STATUS_SUCCESS;
 
@@ -33,7 +37,13 @@ static NTSTATUS CreateAesKey(BCRYPT_KEY_HANDLE* outAesKey, PBYTE* outBufferAesKe
 
     // Convert bit to byte
     DWORD bufferSize = AES_KEY_BIT_SIZE / 8;
-    PBYTE buffer = new BYTE[bufferSize];
+    PBYTE buffer = new(std::nothrow) BYTE[bufferSize];
+    if (buffer == NULL)
+    {
+        fprintf(stderr, "Failed to allocate memory for AES key buffer.\n");
+        status = STATUS_INSUFFICIENT_RESOURCES;
+        goto cleanup;
+    }
 
     status = BCryptOpenAlgorithmProvider(&aesAlgo, BCRYPT_AES_ALGORITHM, NULL, 0);
     if (FAILED(HRESULT_FROM_NT(status)))
@@ -81,9 +91,9 @@ cleanup:
 }
 
 // Helper function to load and create RSA Export Key in BCrypt.
-static NTSTATUS CreateRsaExportKey(PBYTE bufferRsaExportKeyBin,
-    DWORD bufferRsaExportKeyBinSize,
-    BCRYPT_KEY_HANDLE* outRsaExportKey)
+static NTSTATUS CreateRsaExportKey(_In_reads_bytes_(bufferRsaExportKeyBinSize) PBYTE bufferRsaExportKeyBin,
+    _In_ DWORD bufferRsaExportKeyBinSize,
+    _Out_ BCRYPT_KEY_HANDLE* outRsaExportKey)
 {
     NTSTATUS status = STATUS_SUCCESS;
 
@@ -127,12 +137,12 @@ cleanup:
 }
 
 // Helper function to encrypt AES key with RSA Export Key in BCrypt.
-static NTSTATUS EncryptAesWithRsaExportKey(PBYTE bufferAesKey,
-    DWORD bufferAesKeySize,
-    BCRYPT_KEY_HANDLE rsaExportKey,
-    LPCWSTR algId,
-    PBYTE* outBuffer,
-    DWORD* outBufferSize)
+static NTSTATUS EncryptAesWithRsaExportKey(_In_reads_bytes_(bufferAesKeySize) PBYTE bufferAesKey,
+    _In_ DWORD bufferAesKeySize,
+    _In_ BCRYPT_KEY_HANDLE rsaExportKey,
+    _In_ LPCWSTR algId,
+    _Outptr_result_buffer_(*outBufferSize) PBYTE* outBuffer,
+    _Out_ DWORD* outBufferSize)
 {
     NTSTATUS status = STATUS_SUCCESS;
 
@@ -162,7 +172,13 @@ static NTSTATUS EncryptAesWithRsaExportKey(PBYTE bufferAesKey,
         goto cleanup;
     }
 
-    bufferEncrypted = new BYTE[bytes];
+    bufferEncrypted = new(std::nothrow) BYTE[bytes];
+    if (bufferEncrypted == NULL)
+    {
+        fprintf(stderr, "Failed to allocate memory for encrypted buffer.\n");
+        status = STATUS_INSUFFICIENT_RESOURCES;
+        goto cleanup;
+    }
     bufferEncryptedSize = bytes;
 
     status = BCryptEncrypt(rsaExportKey,
@@ -199,7 +215,11 @@ cleanup:
 // This should only be used for this sample for demonstration purposes.
 // Do not use this in production code.
 // Please reference OpenSSL EVP_aes_256_wrap_pad
-static NTSTATUS AesKeyWrapPad(BCRYPT_KEY_HANDLE hAesKey, PBYTE pbInput, ULONG cbInput, PBYTE pbOutput, ULONG* pcbOutput)
+static NTSTATUS AesKeyWrapPad(_In_ BCRYPT_KEY_HANDLE hAesKey, 
+                             _In_reads_bytes_(cbInput) PBYTE pbInput, 
+                             _In_ ULONG cbInput, 
+                             _Out_writes_bytes_opt_(*pcbOutput) PBYTE pbOutput, 
+                             _Inout_ ULONG* pcbOutput)
 {
     NTSTATUS status = STATUS_SUCCESS;
 
@@ -215,11 +235,21 @@ static NTSTATUS AesKeyWrapPad(BCRYPT_KEY_HANDLE hAesKey, PBYTE pbInput, ULONG cb
     }
 
     ULONG cbR = cbLen - AES_KEY_WRAP_PAD_TEXT_BLOCK_LENGTH;
-    PBYTE pbR = new BYTE[cbR];
+    PBYTE pbR = new(std::nothrow) BYTE[cbR];
+    if (pbR == NULL)
+    {
+        fprintf(stderr, "Failed to allocate memory for wrap buffer.\n");
+        status = STATUS_INSUFFICIENT_RESOURCES;
+        goto cleanup;
+    }
 
-    BYTE rgbZero[AES_KEY_WRAP_PAD_AES_BLOCK_LENGTH] = { 0 };
-    BYTE rgbBlock[AES_KEY_WRAP_PAD_AES_BLOCK_LENGTH * 2] = { 0 };
-    BYTE rgbA[AES_KEY_WRAP_PAD_TEXT_BLOCK_LENGTH] = { 0 };
+    BYTE rgbZero[AES_KEY_WRAP_PAD_AES_BLOCK_LENGTH];
+    BYTE rgbBlock[AES_KEY_WRAP_PAD_AES_BLOCK_LENGTH * 2];
+    BYTE rgbA[AES_KEY_WRAP_PAD_TEXT_BLOCK_LENGTH];
+    
+    memset(rgbZero, 0, sizeof(rgbZero));
+    memset(rgbBlock, 0, sizeof(rgbBlock));
+    memset(rgbA, 0, sizeof(rgbA));
 
     ULONG cbResult;
 
@@ -298,13 +328,13 @@ cleanup:
     return status;
 }
 
-static void CreateBCryptStruct(PBYTE bufferEncryptedAesKey,
-    DWORD bufferEncryptedAesKeySize,
-    PBYTE bufferWrappedRsa,
-    DWORD bufferWrappedRsaSize,
-    LPCWSTR algId,
-    PBYTE* out,
-    DWORD* outSize)
+static void CreateBCryptStruct(_In_reads_bytes_(bufferEncryptedAesKeySize) PBYTE bufferEncryptedAesKey,
+    _In_ DWORD bufferEncryptedAesKeySize,
+    _In_reads_bytes_(bufferWrappedRsaSize) PBYTE bufferWrappedRsa,
+    _In_ DWORD bufferWrappedRsaSize,
+    _In_ LPCWSTR algId,
+    _Outptr_result_buffer_(*outSize) PBYTE* out,
+    _Out_ DWORD* outSize)
 {
     // Calculate the actual size of struct
     // Including string trailing zero
@@ -341,13 +371,13 @@ static void CreateBCryptStruct(PBYTE bufferEncryptedAesKey,
 // NCRYPT_SHA256_ALGORITHM
 // NCRYPT_SHA384_ALGORITHM
 // NCRYPT_SHA512_ALGORITHM
-NTSTATUS ExportKeyWrapped(PBYTE bufferToBeImportedKey,
-    DWORD bufferToBeImportedKeySize,
-    PBYTE bufferExportKey,
-    DWORD bufferExportKeySize,
-    LPCWSTR hashAlgId,
-    PBYTE* outKeyBlob,
-    DWORD* outKeyBlobSize)
+NTSTATUS ExportKeyWrapped(_In_reads_bytes_(bufferToBeImportedKeySize) PBYTE bufferToBeImportedKey,
+    _In_ DWORD bufferToBeImportedKeySize,
+    _In_reads_bytes_(bufferExportKeySize) PBYTE bufferExportKey,
+    _In_ DWORD bufferExportKeySize,
+    _In_ LPCWSTR hashAlgId,
+    _Outptr_result_buffer_(*outKeyBlobSize) PBYTE* outKeyBlob,
+    _Out_ DWORD* outKeyBlobSize)
 {
     NTSTATUS status = STATUS_SUCCESS;
 

@@ -21,8 +21,10 @@
 #include <ntstatus.h>
 #include <winerror.h>
 #include <ncrypt.h>
+#include <sal.h>
 
 #include <cstdio>
+#include <new>
 
 #include "AziHSM/AziHSM.h"
 #include "Utils/Utils.h"
@@ -45,7 +47,8 @@ typedef enum _RsaKeyLength
 
 // Helper function that returns a pointer to the buffer containing the private
 // RSA key of the specified length.
-static BYTE* get_rsa_private_key_data_ptr(RsaKeyLength keylen)
+_Ret_maybenull_
+static BYTE* get_rsa_private_key_data_ptr(_In_ RsaKeyLength keylen)
 {
     switch (keylen)
     {
@@ -62,7 +65,7 @@ static BYTE* get_rsa_private_key_data_ptr(RsaKeyLength keylen)
 
 // Helper function that returns the length of the buffer containing the private
 // RSA key of the specified length.
-static DWORD get_rsa_private_key_data_len(RsaKeyLength keylen)
+static DWORD get_rsa_private_key_data_len(_In_ RsaKeyLength keylen)
 {
     switch (keylen)
     {
@@ -78,11 +81,18 @@ static DWORD get_rsa_private_key_data_len(RsaKeyLength keylen)
 }
 
 // Helper function that opens a handle to the AziHSM's built-in unwrap key.
-static SECURITY_STATUS open_unwrap_key(NCRYPT_PROV_HANDLE provider,
-                                       NCRYPT_KEY_HANDLE* result)
+static SECURITY_STATUS open_unwrap_key(_In_ NCRYPT_PROV_HANDLE provider,
+                                       _Out_ NCRYPT_KEY_HANDLE* result)
 {
     SECURITY_STATUS status = S_OK;
     NCRYPT_KEY_HANDLE unwrap_key = NULL;
+
+    // Validate input parameters
+    if (provider == NULL || result == NULL)
+    {
+        fprintf(stderr, "Invalid parameters passed to open_unwrap_key.\n");
+        return E_INVALIDARG;
+    }
 
     // Start by opening a handle to Manticore's built-in unwrapping key.
     status = NCryptOpenKey(
@@ -121,14 +131,21 @@ cleanup:
 //
 // The `hash_alg` parameter is used to specify what hashing algorithm to use
 // when generating the wrapped key blob.
-static SECURITY_STATUS wrap_rsa_key(NCRYPT_PROV_HANDLE provider,
-                                    NCRYPT_KEY_HANDLE unwrap_key,
-                                    RsaKeyLength keylen,
-                                    LPCWSTR hash_alg,
-                                    BYTE** result,
-                                    DWORD* result_len)
+static SECURITY_STATUS wrap_rsa_key(_In_ NCRYPT_PROV_HANDLE provider,
+                                    _In_ NCRYPT_KEY_HANDLE unwrap_key,
+                                    _In_ RsaKeyLength keylen,
+                                    _In_ LPCWSTR hash_alg,
+                                    _Outptr_result_buffer_(*result_len) BYTE** result,
+                                    _Out_ DWORD* result_len)
 {
     SECURITY_STATUS status = S_OK;
+    
+    // Validate input parameters
+    if (provider == NULL || unwrap_key == NULL || hash_alg == NULL || result == NULL || result_len == NULL)
+    {
+        fprintf(stderr, "Invalid parameters passed to wrap_rsa_key.\n");
+        return E_INVALIDARG;
+    }
     
     BYTE* rsa_private_key_data = NULL;
     DWORD rsa_private_key_data_len = 0;
@@ -141,7 +158,13 @@ static SECURITY_STATUS wrap_rsa_key(NCRYPT_PROV_HANDLE provider,
     // --------------------- Built-In Unwrap Key Export --------------------- //
     // Allocate a buffer to store the public RSA key, which we'll extract
     // below via `NCryptExportKey()`.
-    unwrap_key_data = new BYTE[unwrap_key_data_len_max];
+    unwrap_key_data = new(std::nothrow) BYTE[unwrap_key_data_len_max];
+    if (unwrap_key_data == NULL)
+    {
+        fprintf(stderr, "Failed to allocate memory for unwrap key data.\n");
+        status = E_OUTOFMEMORY;
+        goto cleanup;
+    }
 
     // Next, export the public key's contents (which we get from the
     // built-in unwrapping key) to an array.
@@ -221,15 +244,22 @@ cleanup:
 // NCrypt API.
 //
 // On success, `*result` is updated to store the handle of the imported key.
-static SECURITY_STATUS import_key_blob(NCRYPT_PROV_HANDLE provider,
-                                       NCRYPT_KEY_HANDLE unwrap_key,
-                                       BYTE* blob_data,
-                                       DWORD blob_data_len,
-                                       DWORD key_usage_flag,
-                                       NCRYPT_KEY_HANDLE* result)
+static SECURITY_STATUS import_key_blob(_In_ NCRYPT_PROV_HANDLE provider,
+                                       _In_ NCRYPT_KEY_HANDLE unwrap_key,
+                                       _In_reads_bytes_(blob_data_len) BYTE* blob_data,
+                                       _In_ DWORD blob_data_len,
+                                       _In_ DWORD key_usage_flag,
+                                       _Out_ NCRYPT_KEY_HANDLE* result)
 {
     SECURITY_STATUS status = S_OK;
     NCRYPT_KEY_HANDLE key = 0;
+
+    // Validate input parameters
+    if (provider == NULL || unwrap_key == NULL || blob_data == NULL || blob_data_len == 0 || result == NULL)
+    {
+        fprintf(stderr, "Invalid parameters passed to import_key_blob.\n");
+        return E_INVALIDARG;
+    }
 
     // Create an `NCryptBuffer` object to contain the algorithm ID string.
     const DWORD param_buffers_len = 1;
@@ -349,18 +379,25 @@ cleanup:
 // Helper function that encrypts the provided plaintext using the provided key
 // handle. The resulting ciphertext is allocated into a new buffer, and
 // `*result` is updated to point at it.
-static SECURITY_STATUS encrypt(NCRYPT_KEY_HANDLE key,
-                               BYTE* plaintext,
-                               size_t plaintext_len,
-                               wchar_t* oaep_label,
-                               size_t oaep_label_len,
-                               LPCWSTR oaep_alg,
-                               BYTE** result,
-                               size_t* result_len)
+static SECURITY_STATUS encrypt(_In_ NCRYPT_KEY_HANDLE key,
+                               _In_reads_bytes_(plaintext_len) BYTE* plaintext,
+                               _In_ size_t plaintext_len,
+                               _In_reads_opt_(oaep_label_len) wchar_t* oaep_label,
+                               _In_ size_t oaep_label_len,
+                               _In_ LPCWSTR oaep_alg,
+                               _Outptr_result_buffer_(*result_len) BYTE** result,
+                               _Out_ size_t* result_len)
 {
     SECURITY_STATUS status = S_OK;
     BYTE* ciphertext = NULL;
     size_t ciphertext_len = 0;
+
+    // Validate input parameters
+    if (key == NULL || plaintext == NULL || plaintext_len == 0 || oaep_alg == NULL || result == NULL || result_len == NULL)
+    {
+        fprintf(stderr, "Invalid parameters passed to encrypt.\n");
+        return E_INVALIDARG;
+    }
 
     // Create a struct for using OAEP padding for encryption.
     // The following options for algorithm IDs are available:
@@ -395,7 +432,14 @@ static SECURITY_STATUS encrypt(NCRYPT_KEY_HANDLE key,
     
     // Allocate a buffer to store the ciphertext, then call `NCryptEncrypt` a
     // second time to generate it and store the result.
-    ciphertext = new BYTE[ciphertext_len];
+    ciphertext = new(std::nothrow) BYTE[ciphertext_len];
+    if (ciphertext == NULL)
+    {
+        fprintf(stderr, "Failed to allocate memory for ciphertext buffer.\n");
+        status = E_OUTOFMEMORY;
+        goto cleanup;
+    }
+    
     status = NCryptEncrypt(
         key,
         (PBYTE) plaintext,
@@ -438,14 +482,14 @@ cleanup:
 // Helper function that decrypts the provided ciphertext using the provided key
 // handle. The resulting plaintext is allocated into a new buffer, and
 // `*result` is updated to point at it.
-static SECURITY_STATUS decrypt(NCRYPT_KEY_HANDLE key,
-                               BYTE* ciphertext,
-                               size_t ciphertext_len,
-                               wchar_t* oaep_label,
-                               size_t oaep_label_len,
-                               LPCWSTR oaep_alg,
-                               BYTE** result,
-                               size_t* result_len)
+static SECURITY_STATUS decrypt(_In_ NCRYPT_KEY_HANDLE key,
+                               _In_reads_bytes_(ciphertext_len) BYTE* ciphertext,
+                               _In_ size_t ciphertext_len,
+                               _In_reads_opt_(oaep_label_len) wchar_t* oaep_label,
+                               _In_ size_t oaep_label_len,
+                               _In_ LPCWSTR oaep_alg,
+                               _Outptr_result_buffer_(*result_len) BYTE** result,
+                               _Out_ size_t* result_len)
 {
     SECURITY_STATUS status = S_OK;
     BYTE* decrypted = NULL;
@@ -484,7 +528,14 @@ static SECURITY_STATUS decrypt(NCRYPT_KEY_HANDLE key,
     
     // Allocate a buffer to store the plaintext, then call `NCryptDecrypt` a
     // second time to generate it and store the result.
-    decrypted = new BYTE[decrypted_len];
+    decrypted = new(std::nothrow) BYTE[decrypted_len];
+    if (decrypted == NULL)
+    {
+        fprintf(stderr, "Failed to allocate memory for decrypted buffer.\n");
+        status = E_OUTOFMEMORY;
+        goto cleanup;
+    }
+    
     status = NCryptDecrypt(
         key,
         (PBYTE) ciphertext,
@@ -526,7 +577,7 @@ cleanup:
 
 // Helper function that searches the command-line arguments provided by the
 // user for an RSA key length specification.
-static RsaKeyLength parse_key_len(int argc, char** argv)
+static RsaKeyLength parse_key_len(_In_ int argc, _In_reads_(argc) char** argv)
 {
     RsaKeyLength result = RSA_KEY_LENGTH_2048;
 
@@ -539,7 +590,13 @@ static RsaKeyLength parse_key_len(int argc, char** argv)
 
         // Make a copy of the argument string, and convert it to lowercase
         size_t str_len = std::strlen(arg);
-        char* str = new char[str_len + 1];
+        char* str = new(std::nothrow) char[str_len + 1];
+        if (str == NULL)
+        {
+            // Continue processing other arguments if memory allocation fails
+            continue;
+        }
+        
         for (size_t j = 0; j < str_len; j++)
         {
             str[j] = std::tolower(static_cast<unsigned char>(arg[j]));
@@ -565,7 +622,7 @@ static RsaKeyLength parse_key_len(int argc, char** argv)
     return result;
 }
 
-int main(int argc, char** argv)
+int main(_In_ int argc, _In_reads_(argc) char** argv)
 {
     printf("AziHSM Demonstration: RSA Key Import --> RSA Encrypt --> RSA Decrypt\n");
     printf("====================================================================\n");
@@ -684,7 +741,14 @@ int main(int argc, char** argv)
     // Allocate a buffer of plaintext to encrypt, and fill it with random
     // bytes.
     plaintext_len = 128;
-    plaintext = new BYTE[plaintext_len];
+    plaintext = new(std::nothrow) BYTE[plaintext_len];
+    if (plaintext == NULL)
+    {
+        fprintf(stderr, "Failed to allocate memory for plaintext buffer.\n");
+        status = E_OUTOFMEMORY;
+        goto cleanup;
+    }
+    
     status = HRESULT_FROM_NT(randomize_buffer(plaintext, plaintext_len));
     if (FAILED(status))
     {

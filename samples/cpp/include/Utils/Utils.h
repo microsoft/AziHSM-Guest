@@ -12,10 +12,14 @@
 #undef WIN32_NO_STATUS
 #include <ntstatus.h>
 #include <winerror.h>
+#include <sal.h>
 
 // Helper function that creates a heap-allocated string representing a provided
 // buffer as a string of hexadecimal values.
-static HRESULT buffer_to_hex(BYTE* buffer, size_t buffer_len, char** result, size_t* result_len)
+static HRESULT buffer_to_hex(_In_reads_bytes_(buffer_len) BYTE* buffer, 
+                            _In_ size_t buffer_len, 
+                            _Outptr_result_buffer_(*result_len) char** result, 
+                            _Out_ size_t* result_len)
 {
     HRESULT status = S_OK;
     size_t str_idx = 0;
@@ -66,7 +70,7 @@ buffer_to_hex_cleanup:
 }
 
 // Helper function that fills the provided buffer with random bytes.
-static NTSTATUS randomize_buffer(BYTE* buffer, size_t buffer_len)
+static NTSTATUS randomize_buffer(_Out_writes_bytes_(buffer_len) BYTE* buffer, _In_ size_t buffer_len)
 {
     NTSTATUS status = STATUS_SUCCESS;
 
