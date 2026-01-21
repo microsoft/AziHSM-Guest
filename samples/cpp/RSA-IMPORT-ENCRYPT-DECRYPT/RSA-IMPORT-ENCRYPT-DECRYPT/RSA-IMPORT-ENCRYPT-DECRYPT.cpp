@@ -99,7 +99,7 @@ static SECURITY_STATUS open_unwrap_key(NCRYPT_PROV_HANDLE provider,
                 status);
         goto cleanup;
     }
-    
+
     // Set return pointer and a successful status code
     *result = unwrap_key;
     unwrap_key = NULL;
@@ -129,7 +129,7 @@ static SECURITY_STATUS wrap_rsa_key(NCRYPT_PROV_HANDLE provider,
                                     DWORD* result_len)
 {
     SECURITY_STATUS status = S_OK;
-    
+
     BYTE* rsa_private_key_data = NULL;
     DWORD rsa_private_key_data_len = 0;
     DWORD unwrap_key_data_len_max = 600;
@@ -162,7 +162,7 @@ static SECURITY_STATUS wrap_rsa_key(NCRYPT_PROV_HANDLE provider,
                 status);
         goto cleanup;
     }
-    
+
     // ---------------------- Wrapped Blob Generation ----------------------- //
     // The next step is to use the built-in unwrap key's data (and an AES key
     // that we will randomly generate) to create a key blob. This is the blob
@@ -237,7 +237,7 @@ static SECURITY_STATUS import_key_blob(NCRYPT_PROV_HANDLE provider,
     param_buffers[0].cbBuffer = static_cast<ULONG>(wcslen(BCRYPT_RSA_ALGORITHM) + 1) * sizeof(WCHAR);
     param_buffers[0].BufferType = NCRYPTBUFFER_PKCS_ALG_ID;
     param_buffers[0].pvBuffer = (PVOID) BCRYPT_RSA_ALGORITHM;
-    
+
     // Pack the buffer into an `NCryptBufferDesc` object, which we'll pass
     // into `NCryptImportKey`.
     NCryptBufferDesc params;
@@ -265,7 +265,7 @@ static SECURITY_STATUS import_key_blob(NCRYPT_PROV_HANDLE provider,
                 status);
         goto cleanup;
     }
-    
+
     // Set the key's usage with the provided flag.
     status = NCryptSetProperty(
         key,
@@ -319,23 +319,36 @@ static SECURITY_STATUS import_key_blob(NCRYPT_PROV_HANDLE provider,
                 status);
         goto cleanup;
     }
-    
+
     *result = key;
     key = NULL;
     status = S_OK;
 cleanup:
     SECURITY_STATUS exit_status = status;
-    
+
     // If the key handle was never transferred to the return parameter,
-    // something went wrong; free it here
+    // something went wrong; delete it and free the handle
     if (key != NULL)
     {
-        status = NCryptFreeObject(key);
+        status = NCryptDeleteKey(key, 0);
         if (FAILED(status))
         {
-            fprintf(stderr, "Failed to free imported key handle after error. "
-                    "NCryptFreeObject returned: 0x%08x\n",
+            fprintf(stderr, "Failed to delete imported key after error. "
+                    "NCryptDeleteKey returned: 0x%08x\n",
                     status);
+
+            // If we failed to delete the key, try to free the key handle.
+            status = NCryptFreeObject(key);
+            if (FAILED(status))
+            {
+                fprintf(stderr, "Failed to free imported key handle during cleanup. "
+                        "NCryptFreeObject returned: 0x%08x\n",
+                        status);
+            }
+            else
+            {
+                key = NULL;
+            }
         }
         else
         {
@@ -392,7 +405,7 @@ static SECURITY_STATUS encrypt(NCRYPT_KEY_HANDLE key,
                 status);
         goto cleanup;
     }
-    
+
     // Allocate a buffer to store the ciphertext, then call `NCryptEncrypt` a
     // second time to generate it and store the result.
     ciphertext = new BYTE[ciphertext_len];
@@ -413,7 +426,7 @@ static SECURITY_STATUS encrypt(NCRYPT_KEY_HANDLE key,
                 status);
         goto cleanup;
     }
-    
+
     // Set return pointers and a success exit status
     *result = ciphertext;
     *result_len = ciphertext_len;
@@ -481,7 +494,7 @@ static SECURITY_STATUS decrypt(NCRYPT_KEY_HANDLE key,
                 status);
         goto cleanup;
     }
-    
+
     // Allocate a buffer to store the plaintext, then call `NCryptDecrypt` a
     // second time to generate it and store the result.
     decrypted = new BYTE[decrypted_len];
@@ -502,7 +515,7 @@ static SECURITY_STATUS decrypt(NCRYPT_KEY_HANDLE key,
                 status);
         goto cleanup;
     }
-    
+
     // Set return pointers and a success exit status
     *result = decrypted;
     *result_len = decrypted_len;
@@ -561,7 +574,7 @@ static RsaKeyLength parse_key_len(int argc, char** argv)
 
         delete[] str;
     }
-    
+
     return result;
 }
 
@@ -589,7 +602,7 @@ int main(int argc, char** argv)
             fprintf(stderr, "Unexpected RSA key length provided.\n");
             return E_FAIL;
     }
-    
+
     // Define several variables used throughout the main function.
     NCRYPT_PROV_HANDLE provider = NULL;                 // <-- AziHSM KSP handle
     NCRYPT_KEY_HANDLE unwrap_key = NULL;                // <-- Built-in unwrap key handle
@@ -609,7 +622,7 @@ int main(int argc, char** argv)
     const wchar_t* oaep_label = L"labeldata";           // <-- Data used for OAEP padding for RSA encrypt/decrypt
     const size_t oaep_label_len = wcslen(oaep_label);   // Length of the OAEP padding label string
     LPCWSTR oaep_alg = NCRYPT_SHA256_ALGORITHM;         // <-- Hashing algorithm to use for OAEP padding
-    
+
     // Open a handle to the AziHSM via the NCrypt API.
     status = NCryptOpenStorageProvider(&provider, AZIHSM_KSP_NAME, 0);
     if (FAILED(status))
@@ -621,7 +634,7 @@ int main(int argc, char** argv)
     }
     printf("Opened NCrypt Storage Provider handle: 0x%08x\n", (int) provider);
 
-    
+
     // -------------------- Step 1 - Import the RSA Key --------------------- //
     printf("\nStep 1: Import RSA Key"
            "\n----------------------\n");
@@ -659,7 +672,7 @@ int main(int argc, char** argv)
     }
     printf("Created wrapped RSA key blob: %d bytes of data.\n",
            blob_data_len);
-    
+
     // Next, take the blob and import into the AziHSM as an RSA key.
     status = import_key_blob(
         provider,
@@ -676,7 +689,7 @@ int main(int argc, char** argv)
     printf("Successfully imported key into AziHSM. Got handle: 0x%08x.\n",
            (int) imported_key);
 
-    
+
     // --------------- Step 2 - Generate & Encrypt Plaintext ---------------- //
     printf("\nStep 2: Encrypt Plaintext"
            "\n-------------------------\n");
@@ -728,8 +741,8 @@ int main(int argc, char** argv)
     }
     printf("Ciphertext: [%s]\n", hexstr);
     free(hexstr);
-    
-    
+
+
     // ------------------ Step 3 - Decrypt the Ciphertext ------------------- //
     printf("\nStep 3: Decrypt Ciphertext"
            "\n--------------------------\n");
@@ -804,7 +817,7 @@ cleanup:
         decrypted_len = 0;
         printf("Freed decrypted ciphertext buffer.\n");
     }
-    
+
     // Free the ciphertext buffer
     if (ciphertext != NULL)
     {
@@ -813,7 +826,7 @@ cleanup:
         ciphertext_len = 0;
         printf("Freed ciphertext buffer.\n");
     }
-    
+
     // Free the plaintext buffer
     if (plaintext != NULL)
     {
@@ -822,20 +835,34 @@ cleanup:
         plaintext_len = 0;
         printf("Freed plaintext buffer.\n");
     }
-    
-    // Free the handle to the imported RSA key
+
+    // Delete the imported RSA key and free its handle
     if (imported_key != NULL)
     {
-        status = NCryptFreeObject(imported_key);
+        status = NCryptDeleteKey(imported_key, 0);
         if (FAILED(status))
         {
-            fprintf(stderr, "Failed to free imported key handle. "
-                    "NCryptFreeObject returned: 0x%08x\n",
+            fprintf(stderr, "Failed to delete imported key. "
+                    "NCryptDeleteKey returned: 0x%08x\n",
                     status);
+
+            // If we failed to delete the key, try to free the key handle.
+            status = NCryptFreeObject(imported_key);
+            if (FAILED(status))
+            {
+                fprintf(stderr, "Failed to free imported key handle during cleanup. "
+                        "NCryptFreeObject returned: 0x%08x\n",
+                        status);
+            }
+            else
+            {
+                printf("Freed imported key handle.\n");
+                imported_key = NULL;
+            }
         }
         else
         {
-            printf("Freed imported key handle.\n");
+            printf("Deleted imported key (and freed the key handle).\n");
             imported_key = NULL;
         }
     }
@@ -849,7 +876,8 @@ cleanup:
         printf("Freed wrapped key blob data.\n");
     }
 
-    // Free the handle to the AziHSM built-in unwrapping key
+    // Free our handle to the AziHSM import key (built-in unwrapping key); we
+    // do not need to delete this key.
     if (unwrap_key != NULL)
     {
         status = NCryptFreeObject(unwrap_key);

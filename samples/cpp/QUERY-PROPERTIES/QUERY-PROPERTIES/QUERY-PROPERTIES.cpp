@@ -3,10 +3,9 @@
 
 // This sample demonstrates querying the properties that AziHSM exposes to user:
 //
-// 1. "AZIHSM_DEVICE_CERT_CHAIN_PROPERTY"
-// 2. "AZIHSM_DEVICE_MAX_STORAGE_SIZE_PROPERTY"
-// 3. "AZIHSM_DEVICE_MAX_KEY_COUNT_PROPERTY"
-// 
+// 1. "AZIHSM_DEVICE_MAX_STORAGE_SIZE_PROPERTY"
+// 2. "AZIHSM_DEVICE_MAX_KEY_COUNT_PROPERTY"
+//
 // For detailed explanation of each property, please refer to related demo below.
 //
 //
@@ -70,36 +69,6 @@ cleanup:
     return status;
 }
 
-// Query "AZIHSM_DEVICE_CERT_CHAIN_PROPERTY"
-// You can retrieve the device certificate chain with this property.
-// The returned buffer will contain multiple certificates in PEM format, concatenated together with newline (\n).
-// The leaf certificate will be first in the chain.
-// Retrieving this property is useful during device attestation, for more information about attestation,
-// see another sample: ATTEST-UNWRAP-RSA
-static SECURITY_STATUS queryCertChainProperty(NCRYPT_PROV_HANDLE provider) {
-    SECURITY_STATUS status = E_FAIL;
-
-    PBYTE buffer = NULL;
-    DWORD bufferSize;
-
-    status = query(provider, AZIHSM_PROPERTY_CERT_CHAIN_NAME, &buffer, &bufferSize);
-    if (FAILED(status))
-    {
-        fprintf(stderr, "Failed to get AZIHSM_PROPERTY_CERT_CHAIN_NAME. query returned: 0x%08x\n", status);
-        goto cleanup;
-    }
-
-    // To not flood the console with the certificate chain, we will not print it here.
-    printf("Retrieved AZIHSM_DEVICE_CERT_CHAIN_PROPERTY successfully. Buffer size: %lu\n", bufferSize);
-
-    status = S_OK;
-cleanup:
-    if (buffer)
-    {
-        delete[] buffer;
-    }
-    return status;
-}
 
 // Query "AZIHSM_DEVICE_MAX_STORAGE_SIZE_PROPERTY"
 // You can retrieve the maximum storage size of the AziHSM device.
@@ -156,7 +125,7 @@ cleanup:
 // You can retrieve the maximum number of keys that can be stored on the AziHSM device at the same time.
 // The returned buffer should have 4 bytes, which is the little-endian representation of a 32-bit unsigned integer
 // The integer represents the maximum number of keys that can be stored.
-// Note: 
+// Note:
 //   1. It's not reflecting real-time key count left.
 //   2. Actual number of keys may be lower if storage runs out first.
 //   3. Built-in keys (like AZIHSM_BUILTIN_UNWRAP_KEY) will share the allocation.
@@ -224,17 +193,6 @@ int main() {
         goto cleanup;
     }
     printf("Opened NCrypt Storage Provider handle: 0x%08x\n", (int) provider);
-
-    printf("\nQuery AZIHSM_DEVICE_CERT_CHAIN_PROPERTY"
-           "\n---------------------------------------\n");
-    status = queryCertChainProperty(provider);
-    if (FAILED(status))
-    {
-        fprintf(stderr,
-            "Failed to query AZIHSM_DEVICE_CERT_CHAIN_PROPERTY: 0x%08x\n",
-            status);
-        goto cleanup;
-    }
 
     printf("\nQuery AZIHSM_DEVICE_MAX_STORAGE_SIZE_PROPERTY"
            "\n---------------------------------------------\n");

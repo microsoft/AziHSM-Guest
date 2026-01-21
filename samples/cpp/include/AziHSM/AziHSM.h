@@ -144,7 +144,7 @@ inline AZIHSM_STATUS azihsm_parse_claim(
     DWORD* outBufferQuoteSize,
     DWORD* outBufferCertificateOffset,
     DWORD* outBufferCertificateSize) {
-    size_t headerSize = sizeof(AziHSMClaimHeader);
+    DWORD headerSize = (DWORD) sizeof(AziHSMClaimHeader);
 
     if (bufferClaimSize < headerSize)
     {

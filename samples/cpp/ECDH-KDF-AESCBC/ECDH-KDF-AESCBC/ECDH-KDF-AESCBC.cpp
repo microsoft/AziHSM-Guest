@@ -7,8 +7,8 @@
 //    separate party: "Alice" (party 1) and "Bob" (party 2))
 // 2. Perform ECDH key exchange, to exchange public keys between the two
 //    parties, and generate a shared secret.
-// 3. Use KBKDF or HKDF to derive the same AES key (using the shared secret)
-//    for both parties.
+// 3. Use HKDF to derive the same AES key (using the shared secret) for both
+//    parties.
 // 4. Perform AES-CBC encryption and decryption to verify that the two derived
 //    AES keys are identical.
 //
@@ -39,14 +39,6 @@
 // Force the linking of the NCrypt library into this executable, so we can
 // access NCrypt symbols in our code below:
 #pragma comment(lib, "ncrypt.lib")
-
-// Global settings to toggle between KBKDF and HKDF (By default, this program
-// will use KBKDF.)
-typedef enum _KDFType
-{
-    KDF_TYPE_KBKDF, // Key-Based Key Derivation Function
-    KDF_TYPE_HKDF,  // HMAC-based Key Derivation Function
-} KDFType;
 
 
 // ============================= NCrypt Helpers ============================= //
@@ -101,7 +93,7 @@ static SECURITY_STATUS create_ecdh_key(NCRYPT_PROV_HANDLE provider,
                 status);
         goto cleanup;
     }
-    
+
     // Success; update the return pointer and set a successful return status.
     // Set `key` back to NULL, to move ownership of the key handle to
     // `*result`.
@@ -111,17 +103,34 @@ static SECURITY_STATUS create_ecdh_key(NCRYPT_PROV_HANDLE provider,
 
 cleanup:
     SECURITY_STATUS exit_status = status;
-    
+
     // If the key was not set back to zero, then something went wrong above and
-    // we need to free the key before returning.
+    // we need to delete and free the key before returning.
     if (key != NULL)
     {
-        status = NCryptFreeObject(key);
+        status = NCryptDeleteKey(key, 0);
         if (FAILED(status))
         {
-            fprintf(stderr, "Failed to free ECDH key handle. "
-                    "NCryptFreeObject returned: 0x%08x\n",
+            fprintf(stderr, "Failed to delete ECDH key. "
+                    "NCryptDeleteKey returned: 0x%08x\n",
                     status);
+
+            // If we failed to delete the key, try to free the key handle.
+            status = NCryptFreeObject(key);
+            if (FAILED(status))
+            {
+                fprintf(stderr, "Failed to free ECDH key handle during cleanup. "
+                        "NCryptFreeObject returned: 0x%08x\n",
+                        status);
+            }
+            else
+            {
+                key = NULL;
+            }
+        }
+        else
+        {
+            key = NULL;
         }
     }
 
@@ -157,7 +166,7 @@ static SECURITY_STATUS export_ecdh_key(NCRYPT_KEY_HANDLE key,
                 status);
         goto cleanup;
     }
-    
+
     // Allocate a buffer of the specified size, then invoke `NCryptExportKey()`
     // a second time, to store the exported key.
     buffer = new BYTE[buffer_len];
@@ -187,7 +196,7 @@ static SECURITY_STATUS export_ecdh_key(NCRYPT_KEY_HANDLE key,
     *result_len = buffer_len;
     buffer = NULL;
     status = S_OK;
-    
+
     // Label for cleaning up local resources on error.
 cleanup:
     SECURITY_STATUS exit_status = status;
@@ -229,7 +238,7 @@ static SECURITY_STATUS import_ecdh_key(NCRYPT_PROV_HANDLE provider,
                 status);
         goto cleanup;
     }
-    
+
     // Success; set the return pointer and set a success status message.
     // Reset `key` to NULL, to transfer ownership of the key handle to
     // `*result`.
@@ -265,7 +274,7 @@ static SECURITY_STATUS generate_secret(NCRYPT_KEY_HANDLE private_ecdh_key,
                 status);
         goto cleanup;
     }
-    
+
     // Success; set the return pointer and set a success status message
     // Reset `secret` to NULL, to transfer ownership of the secret handle to
     // `*result`.
@@ -275,168 +284,6 @@ static SECURITY_STATUS generate_secret(NCRYPT_KEY_HANDLE private_ecdh_key,
 
 cleanup:
     SECURITY_STATUS exit_status = status;
-    return exit_status;
-}
-
-// Helper function that invokes AziHSM (via NCrypt) with the given secret
-// handle to derive an AES key, using KBKDF.
-static SECURITY_STATUS derive_aes_key_kbkdf(NCRYPT_PROV_HANDLE provider,
-                                            NCRYPT_SECRET_HANDLE secret,
-                                            size_t key_bit_len,
-                                            PCWSTR hash_alg,
-                                            const wchar_t* context,
-                                            const size_t context_len,
-                                            const wchar_t* label,
-                                            const size_t label_len,
-                                            NCRYPT_KEY_HANDLE* result)
-{
-    SECURITY_STATUS status = S_OK;
-    NCRYPT_KEY_HANDLE key = NULL;
-    
-    // Using KBKDF requires using the SP800-108 HMAC in Counter Mode algorithm
-    // identifier when invoking NCrypt.
-    PCWSTR kdf_alg = BCRYPT_SP800108_CTR_HMAC_ALGORITHM;
-
-    // Before calling `NCryptDeriveKey()`, we need to establish an array of
-    // `BCryptBuffer` objects, which we'll pass into `NCryptDeriveKey()` as
-    // parameters.
-    const size_t param_buffers_len = 4;
-    BCryptBuffer param_buffers[param_buffers_len];
-
-    // HASH ALGORITHM: this will tell AziHSM which hashing algorithm we want to
-    // use for key derivation.
-    param_buffers[0].BufferType = KDF_HASH_ALGORITHM;
-    param_buffers[0].cbBuffer = (ULONG) (wcslen(hash_alg) * sizeof(wchar_t));
-    param_buffers[0].pvBuffer = (PVOID) hash_alg;
-    
-    // CONTEXT: The KBKDF Context is a custom string that is factored into the
-    // key derivation process. If two keys are derived from the same secret,
-    // but they have different context strings, the resulting derived key will
-    // be different.
-    param_buffers[1].BufferType = KDF_CONTEXT;
-    param_buffers[1].cbBuffer = (ULONG) context_len * sizeof(wchar_t);
-    param_buffers[1].pvBuffer = (PVOID) context;
-    
-    // LABEL: The KBKDF Label plays a similar role to the KBKDF Context. It is
-    // a custom string that is factored into the key derivation process. If two
-    // keys are derived from the same secret, *and* the same context, but they
-    // have different label strings, the resulting derived key will be
-    // different.
-    param_buffers[2].BufferType = KDF_LABEL;
-    param_buffers[2].cbBuffer = (ULONG) label_len * sizeof(wchar_t);
-    param_buffers[2].pvBuffer = (PVOID) label;
-    
-    // KEY BIT LENGTH: Lastly, we need to specify the number of bits we want
-    // our derived AES key to be.
-    const uint32_t key_bit_length = (uint32_t) key_bit_len;
-    param_buffers[3].BufferType = KDF_KEYBITLENGTH;
-    param_buffers[3].cbBuffer = (ULONG) sizeof(uint32_t);
-    param_buffers[3].pvBuffer = (PVOID) &key_bit_length;
-
-    // Finally, set up a `BCryptBufferDesc` object to contain the array of
-    // `BCryptBuffer` objects.
-    BCryptBufferDesc param_list;
-    param_list.ulVersion = NCRYPTBUFFER_VERSION;
-    param_list.cBuffers = (ULONG) param_buffers_len;
-    param_list.pBuffers = (PBCryptBuffer) param_buffers;
-
-    BYTE* derived_key_buffer = NULL;
-    ULONG derived_key_buffer_len = 0;
-
-    // Now that our parameters are set up, we'll invoke `NCryptDeriveKey()`
-    // once, to determine how many bytes we need to store the result.
-    status = NCryptDeriveKey(
-        secret,
-        kdf_alg,
-        &param_list,
-        NULL,
-        0,
-        &derived_key_buffer_len,
-        0
-    );
-    if (FAILED(status))
-    {
-        fprintf(stderr, "Failed to derive AES key from secret using KBKDF. "
-                "NCryptDeriveKey (call #1) returned: 0x%08x\n",
-                status);
-        goto cleanup;
-    }
-
-    // Allocate a buffer of the specified size, then invoke `NCryptDeriveKey()`
-    // a second time, to store the output data.
-    derived_key_buffer = new BYTE[derived_key_buffer_len];
-    status = NCryptDeriveKey(
-        secret,
-        kdf_alg,
-        &param_list,
-        (PUCHAR) derived_key_buffer,
-        derived_key_buffer_len,
-        &derived_key_buffer_len,
-        0
-    );
-    if (FAILED(status))
-    {
-        fprintf(stderr, "Failed to derive AES key from secret using KBKDF. "
-                "NCryptDeriveKey (call #2) returned: 0x%08x\n",
-                status);
-        goto cleanup;
-    }
-    
-    // The AziHSM's return data from `NCryptDeriveKey()` is different than
-    // other NCrypt Providers. Instead of returning the derived key's raw data
-    // in the output buffer, the AziHSM instead returns a Key Handle in the
-    // output buffer.
-    //
-    // This is done to ensure the derived key does not leave the trusted,
-    // secure hardware environment of the physical AziHSM device.
-    //
-    // The returned key handle can then be re-imported into the AziHSM via
-    // `NCryptImportKey()` in order to use it for encryption operations. We
-    // will do this now.
-
-    // Invoke `NCryptImportKey()` with the `derived_key_buffer` variable used
-    // above to store the result from `NCryptDeriveKey()`.
-    status = NCryptImportKey(
-        provider,
-        NULL,
-        AZIHSM_DERIVED_KEY_IMPORT_BLOB_NAME,
-        NULL,
-        &key,
-        (PBYTE) derived_key_buffer,
-        (DWORD) derived_key_buffer_len,
-        0
-    );
-    if (FAILED(status))
-    {
-        fprintf(stderr, "Failed to import KBKDF-derived AES key. "
-                "NCryptImportKey returned: 0x%08x\n",
-                status);
-        goto cleanup;
-    }
-
-    // With that, we have successfully:
-    //
-    // 1. Derived an AES key from the provided secret.
-    // 2. Imported the resulting key handle back into AziHSM.
-    //
-    // The AES key handle (`*result`) is now ready to be used for
-    // encryption/decryption.
-    
-    // Update the return pointer, and reset `key` to be NULL, to transfer
-    // ownership of the key handle to `*result`.
-    *result = key;
-    key = NULL;
-    status = S_OK;
-    
-    // Label for cleaning up resources during a failure in the key derivation
-    // process.
-cleanup:
-    SECURITY_STATUS exit_status = status;
-
-    // Free the buffer used to store the results from `NCryptDeriveKey()`; we
-    // no longer need it, now that we've re-imported the key
-    delete[] derived_key_buffer;
-
     return exit_status;
 }
 
@@ -470,7 +317,7 @@ static SECURITY_STATUS derive_aes_key_hkdf(NCRYPT_PROV_HANDLE provider,
     param_buffers[0].BufferType = KDF_HASH_ALGORITHM;
     param_buffers[0].cbBuffer = (ULONG) (wcslen(hash_alg) * sizeof(wchar_t));
     param_buffers[0].pvBuffer = (PVOID) hash_alg;
-    
+
     // INFO: The HKDF Info is a custom string that is factored into the key
     // derivation process. If two keys are derived from the same secret, but
     // they have different info strings, the resulting derived key will be
@@ -478,7 +325,7 @@ static SECURITY_STATUS derive_aes_key_hkdf(NCRYPT_PROV_HANDLE provider,
     param_buffers[1].BufferType = KDF_HKDF_INFO;
     param_buffers[1].cbBuffer = (ULONG) info_len * sizeof(wchar_t);
     param_buffers[1].pvBuffer = (PVOID) info;
-    
+
     // SALT: The HKDF Salt plays a similar role to the HKDF Info. It is a
     // custom string that is factored into the key derivation process. If two
     // keys are derived from the same secret, *and* the same info, but they
@@ -487,7 +334,7 @@ static SECURITY_STATUS derive_aes_key_hkdf(NCRYPT_PROV_HANDLE provider,
     param_buffers[2].BufferType = KDF_HKDF_SALT;
     param_buffers[2].cbBuffer = (ULONG) salt_len * sizeof(wchar_t);
     param_buffers[2].pvBuffer = (PVOID) salt;
-    
+
     // KEY BIT LENGTH: Lastly, we need to specify the number of bits we want
     // our derived AES key to be.
     const uint32_t key_bit_length = (uint32_t) key_bit_len;
@@ -543,7 +390,7 @@ static SECURITY_STATUS derive_aes_key_hkdf(NCRYPT_PROV_HANDLE provider,
                 status);
         goto cleanup;
     }
-    
+
     // The AziHSM's return data from `NCryptDeriveKey()` is different than
     // other NCrypt Providers. Instead of returning the derived key's raw data
     // in the output buffer, the AziHSM instead returns a Key Handle in the
@@ -583,13 +430,13 @@ static SECURITY_STATUS derive_aes_key_hkdf(NCRYPT_PROV_HANDLE provider,
     //
     // The AES key handle (`*result`) is now ready to be used for
     // encryption/decryption.
-    
+
     // Update the return pointer, and reset `key` to be NULL, to transfer
     // ownership of the key handle to `*result`.
     *result = key;
     key = NULL;
     status = S_OK;
-    
+
     // Label for cleaning up resources during a failure in the key derivation
     // process.
 cleanup:
@@ -602,92 +449,48 @@ cleanup:
     return exit_status;
 }
 
-// Helper function that differentiates between the two possible KDF types
-// (KBKDF and HKDF) to derive an AES key.
-// This function invokes the two helper functions defined above based on the
-// provided `kdf` parameter:
-//
-// * `KDF_TYPE_KBKDF` --> `derive_aes_key_kbkdf()`
-// * `KDF_TYPE_HKDF` --> `derive_aes_key_hkdf()`
+// Helper function that derives an AES key from the provided secret handle (and
+// other provided information).
 static SECURITY_STATUS derive_aes_key(NCRYPT_PROV_HANDLE provider,
                                       NCRYPT_SECRET_HANDLE secret,
                                       size_t key_bit_len,
                                       PCWSTR hash_alg,
-                                      KDFType kdf,
                                       NCRYPT_KEY_HANDLE* result)
 {
     SECURITY_STATUS status = S_OK;
     NCRYPT_KEY_HANDLE key = NULL;
 
-    // Differentiate between the two possible KDF types:
-    if (kdf == KDF_TYPE_KBKDF)
+    // Define parameters used by HKDF: the info and salt.
+    // Both of these parameters influence the resulting derived key. We want
+    // Alice and Bob (our two parties) to derive the *same* AES key, so we
+    // choose to use constant values here.
+    const wchar_t* hkdf_info = L"info";
+    const size_t hkdf_info_len = wcslen(hkdf_info);
+    const wchar_t* hkdf_salt = L"salt";
+    const size_t hkdf_salt_len = wcslen(hkdf_salt);
+
+    // Invoke the HKDF-specific helper function.
+    status = derive_aes_key_hkdf(
+        provider,
+        secret,
+        key_bit_len,
+        hash_alg,
+        hkdf_info,
+        hkdf_info_len,
+        hkdf_salt,
+        hkdf_salt_len,
+        &key
+    );
+    if (FAILED(status))
     {
-        // Define parameters used by KBKDF: the context and label.
-        // Both of these parameters influence the resulting derived key. We want
-        // Alice and Bob (our two parties) to derive the *same* AES key, so we
-        // choose to use constant values here.
-        const wchar_t* kbkdf_context = L"ctx";
-        const size_t kbkdf_context_len = wcslen(kbkdf_context);
-        const wchar_t* kbkdf_label = L"enc,dec";
-        const size_t kbkdf_label_len = wcslen(kbkdf_label);
-        
-        // Invoke the KBKDF-specific helper function.
-        status = derive_aes_key_kbkdf(
-            provider,
-            secret,
-            key_bit_len,
-            hash_alg,
-            kbkdf_context,
-            kbkdf_context_len,
-            kbkdf_label,
-            kbkdf_label_len,
-            &key
-        );
-        if (FAILED(status))
-        {
-            goto cleanup;
-        }
-        
-        // On success, assign the key handle to the return pointer, and reset
-        // `key` back to NULL, to transfer ownership.
-        *result = key;
-        key = NULL;
-        status = S_OK;
+        goto cleanup;
     }
-    else // kdf == KDF_TYPE_HKDF
-    {
-        // Define parameters used by HKDF: the info and salt.
-        // Both of these parameters influence the resulting derived key. We want
-        // Alice and Bob (our two parties) to derive the *same* AES key, so we
-        // choose to use constant values here.
-        const wchar_t* hkdf_info = L"info";
-        const size_t hkdf_info_len = wcslen(hkdf_info);
-        const wchar_t* hkdf_salt = L"salt";
-        const size_t hkdf_salt_len = wcslen(hkdf_salt);
-        
-        // Invoke the HKDF-specific helper function.
-        status = derive_aes_key_hkdf(
-            provider,
-            secret,
-            key_bit_len,
-            hash_alg,
-            hkdf_info,
-            hkdf_info_len,
-            hkdf_salt,
-            hkdf_salt_len,
-            &key
-        );
-        if (FAILED(status))
-        {
-            goto cleanup;
-        }
-        
-        // On success, assign the key handle to the return pointer, and reset
-        // `key` back to 0, to transfer ownership.
-        *result = key;
-        key = NULL;
-        status = S_OK;
-    }
+
+    // On success, assign the key handle to the return pointer, and reset
+    // `key` back to 0, to transfer ownership.
+    *result = key;
+    key = NULL;
+    status = S_OK;
 
 cleanup:
     SECURITY_STATUS exit_status = status;
@@ -718,7 +521,7 @@ static SECURITY_STATUS encrypt_aes_cbc(NCRYPT_KEY_HANDLE key,
     pinfo.pbOtherInfo = NULL;
     pinfo.cbOtherInfo = 0;
     pinfo.dwFlags = 0;
-    
+
     BYTE* ciphertext = NULL;
     DWORD ciphertext_len = 0;
 
@@ -773,7 +576,7 @@ static SECURITY_STATUS encrypt_aes_cbc(NCRYPT_KEY_HANDLE key,
     *result_len = (size_t) ciphertext_len;
     ciphertext = NULL;
     status = S_OK;
-    
+
 cleanup:
     SECURITY_STATUS exit_status = status;
 
@@ -811,7 +614,7 @@ static SECURITY_STATUS decrypt_aes_cbc(NCRYPT_KEY_HANDLE key,
     pinfo.pbOtherInfo = NULL;
     pinfo.cbOtherInfo = 0;
     pinfo.dwFlags = 0;
-    
+
     BYTE* plaintext = NULL;
     DWORD plaintext_len = 0;
 
@@ -866,7 +669,7 @@ static SECURITY_STATUS decrypt_aes_cbc(NCRYPT_KEY_HANDLE key,
     *result_len = (size_t) plaintext_len;
     plaintext = NULL;
     status = S_OK;
-    
+
 cleanup:
     SECURITY_STATUS exit_status = status;
 
@@ -882,44 +685,6 @@ cleanup:
 
 
 // ================================== Main ================================== //
-// Helper function that determines which KDF (Key Derivation Function) to use
-// during execution, based on the command-line arguments provided by the user.
-static KDFType parse_kdf_type(int argc, char** argv)
-{
-    KDFType result = KDF_TYPE_KBKDF;
-    
-    // Iterate through each command-line argument (skipping the first, which is
-    // the executable path) and look for either "KBKDF" or "HKDF". Convert
-    // strings to lowercase to allow for case insensitive matches.
-    for (int i = 1; i < argc; i++)
-    {
-        char* arg = argv[i];
-
-        // Make a copy of the argument string, and convert it to lowercase
-        size_t str_len = std::strlen(arg);
-        char* str = new char[str_len + 1];
-        for (size_t j = 0; j < str_len; j++)
-        {
-            str[j] = std::tolower(static_cast<unsigned char>(arg[j]));
-        }
-        str[str_len] = '\0';
-
-        // Does the string match KBKDF or HKDF? If so, update the return value
-        if (!strcmp(str, "kbkdf"))
-        {
-            result = KDF_TYPE_KBKDF;
-        }
-        else if (!strcmp(str, "hkdf"))
-        {
-            result = KDF_TYPE_HKDF;
-        }
-
-        delete[] str;
-    }
-    
-    return result;
-}
-
 // Main function. Program execution begins and ends here.
 int main(int argc, char** argv)
 {
@@ -928,15 +693,11 @@ int main(int argc, char** argv)
 
     HRESULT status = S_OK;
 
-    // Parse the command-line arguments to determine which of the two
-    // AziHSM-supported KDFs (Key Derivation Functions) to use for the demo.
-    KDFType kdf_type = parse_kdf_type(argc, argv);
-    printf("Keys will be derived using: %s.\n",
-           kdf_type == KDF_TYPE_KBKDF ? "KBKDF" : "HKDF");
+    printf("Keys will be derived using HKDF.\n");
 
     // Define several objects that will be initialized & used below. We define
     // them all at once, in the beginning, so we can use `goto` statements all
-    // throughout this function to jump to the cleanup routine. 
+    // throughout this function to jump to the cleanup routine.
     NCRYPT_PROV_HANDLE provider = NULL;          // <-- AziHSM provider handle
     NCRYPT_KEY_HANDLE p1_ecdh_key = NULL;        // <-- Alice's private ECDH key handle
     NCRYPT_KEY_HANDLE p2_ecdh_key = NULL;        // <-- Bob's private ECDH key handle
@@ -961,7 +722,7 @@ int main(int argc, char** argv)
     BYTE* p2_decrypted = NULL;                   // <-- Bob's AES-decrypted plaintext.
     char* hexstr = NULL;                         // <-- Pointer used for storing hexadecimal strings
     size_t hexstr_len = 0;                       // <-- Length field for `hexstr`
-   
+
     // Start by opening a NCrypt provider handle to the AziHSM
     status = NCryptOpenStorageProvider(&provider, AZIHSM_KSP_NAME, 0);
     if (FAILED(status))
@@ -1007,7 +768,7 @@ int main(int argc, char** argv)
     }
     printf("Generated ECDH key for Bob: 0x%08x\n", (int) p2_ecdh_key);
 
-    
+
     // ---------- Step 2 - Exchanging Secrets with ECDH Key Pairs ----------- //
     printf("\nStep 2: ECDH Secret Exchange"
            "\n----------------------------\n");
@@ -1046,7 +807,7 @@ int main(int argc, char** argv)
     // (the two buffers we just exported), we'll invoke `NCryptImportKey()`
     // twice below, once for each of the keys. These will give us a key handle
     // with which we can use Alice and Bob's public ECDH keys.
-    
+
     // Import the first party's ("Alice") ECDH public key
     status = import_ecdh_key(
         provider,
@@ -1059,7 +820,7 @@ int main(int argc, char** argv)
         goto cleanup;
     }
     printf("Imported Alice's ECDH public key: 0x%08x\n", (int) p1_ecdh_public_key);
-    
+
     // Import the first party's ("Bob") ECDH public key
     status = import_ecdh_key(
         provider,
@@ -1087,7 +848,7 @@ int main(int argc, char** argv)
         goto cleanup;
     }
     printf("Generated Alice's shared secret: 0x%08x\n", (int) p1_secret);
-    
+
     // Use Bob's private key, and Alice's imported public key, to generate a
     // shared secret for Bob.
     status = generate_secret(p2_ecdh_key, p1_ecdh_public_key, &p2_secret);
@@ -1097,32 +858,15 @@ int main(int argc, char** argv)
     }
     printf("Generated Bob's shared secret: 0x%08x\n", (int) p2_secret);
 
-    
-    // ----------- Step 3 - Deriving AES Keys with KBKDF or HKDF ------------ //
-    // This sample can demonstrate AES key derivation using either KBKDF
-    // (Key-Based Key Derivation Function) or HKDF (HMAC-based Key Derivation
-    // Function).
-
-    if (kdf_type == KDF_TYPE_KBKDF)
-    {
-        printf("\nStep 3: KBKDF AES"
-               "\n-----------------\n");
-    }
-    else // kdf_type == KDF_TYPE_HKDF
-    {
-        printf("\nStep 3: HKDF AES"
-               "\n----------------\n");
-    }
+    // --------------------- Step 3 - Deriving AES Keys --------------------- //
+    printf("\nStep 3: HKDF AES"
+           "\n----------------\n");
 
     // Next, the two parties will each derive an AES key from the shared secret
     // that was generated above.
     //
-    // For this sample, we'll use SHA256 as the hashing algorithm, and we'll
-    // choose between KBKDF and HKDF as our key derivation function.  The input
-    // parameters for `NCryptDeriveKey()` differ between the two KDF types; see
-    // the `derive_aes_key()` helper function for the details.
-    //
-    // We will derive an AES key with a length of 256 bits.
+    // For this sample, we'll use SHA256 as the hashing algorithm for the key
+    // derivation. We will derive an AES key with a length of 256 bits.
 
     // Use Alice's shared secret handle to have the AziHSM derive an AES key.
     status = derive_aes_key(
@@ -1130,35 +874,31 @@ int main(int argc, char** argv)
         p1_secret,
         256,
         BCRYPT_SHA256_ALGORITHM,
-        kdf_type,
         &p1_derived_key
     );
     if (FAILED(status))
     {
         goto cleanup;
     }
-    printf("Derived Alice's AES key using %s: 0x%08x\n",
-           kdf_type == KDF_TYPE_KBKDF ? "KBKDF" : "HKDF",
+    printf("Derived Alice's AES key using HKDF: 0x%08x\n",
            (int) p1_derived_key);
-    
+
     // Use Bob's shared secret handle to have the AziHSM derive an AES key.
     status = derive_aes_key(
         provider,
         p2_secret,
         256,
         BCRYPT_SHA256_ALGORITHM,
-        kdf_type,
         &p2_derived_key
     );
     if (FAILED(status))
     {
         goto cleanup;
     }
-    printf("Derived Bob's AES key using %s: 0x%08x\n",
-           kdf_type == KDF_TYPE_KBKDF ? "KBKDF" : "HKDF",
+    printf("Derived Bob's AES key using HKDF: 0x%08x\n",
            (int) p2_derived_key);
-    
-   
+
+
     // ------------ Step 4 - Performing AES-CBC Encrypt/Decrypt ------------- //
     printf("\nStep 4: AES-CBC Encrypt/Decrypt"
            "\n-------------------------------\n");
@@ -1187,7 +927,7 @@ int main(int argc, char** argv)
     // input to `NCryptDecrypt()`, to ensure both parties (Alice, who is
     // encrypting, and Bob, who is decrypting) use the exact same init vector.
     memcpy(iv_copy, iv, sizeof(BYTE) * iv_len);
-    
+
     // Display the plaintext as a hex string:
     if (FAILED(buffer_to_hex(plaintext, plaintext_len, &hexstr, &hexstr_len)))
     {
@@ -1195,7 +935,7 @@ int main(int argc, char** argv)
     }
     printf("Plaintext to be encrypted: [%s]\n", hexstr);
     free(hexstr);
-    
+
     // Display the initialization vector as a hex string:
     if (FAILED(buffer_to_hex(iv, iv_len, &hexstr, &hexstr_len)))
     {
@@ -1203,7 +943,7 @@ int main(int argc, char** argv)
     }
     printf("AES-CBC Initialization Vector: [%s]\n", hexstr);
     free(hexstr);
-    
+
     // Encrypt the plaintext as the first party ("Alice"), using her derived
     // AES key.
     status = encrypt_aes_cbc(
@@ -1215,7 +955,7 @@ int main(int argc, char** argv)
         &p1_ciphertext,
         &p1_ciphertext_len
     );
-    
+
     // Display Alice's ciphertext
     if (FAILED(buffer_to_hex(p1_ciphertext, p1_ciphertext_len, &hexstr, &hexstr_len)))
     {
@@ -1276,7 +1016,7 @@ int main(int argc, char** argv)
     // scenario to exchange a shared secret and use it to set up a secure line
     // of communication between two parties.
 
-    
+
     // -------------------------- Cleanup Routine --------------------------- //
     // Label for cleaning up resources after encountering an error or ending
     // the demo. Frees the NCrypt provider handle and any other live resources.
@@ -1289,7 +1029,7 @@ cleanup:
 
     printf("\nCleaning Up"
            "\n-----------\n");
-    
+
     // Free encrypted/decrypted ciphertext/plaintext buffers:
     if (p2_decrypted != NULL)
     {
@@ -1324,37 +1064,65 @@ cleanup:
         printf("Freed plaintext buffer.\n");
     }
 
-    // Is Bob's derived AES key in use? Free it
+    // Is Bob's derived AES key in use? Delete it and free the handle.
     if (p2_derived_key != NULL)
     {
-        status = NCryptFreeObject(p2_derived_key);
+        status = NCryptDeleteKey(p2_derived_key, 0);
         if (FAILED(status))
         {
-            fprintf(stderr, "Failed to free Bob's derived AES key handle. "
-                    "NCryptFreeObject returned: 0x%08x\n",
+            fprintf(stderr, "Failed to delete Bob's derived AES key. "
+                    "NCryptDeleteKey returned: 0x%08x\n",
                     status);
+
+            // If we failed to delete the key, try to free the key handle.
+            status = NCryptFreeObject(p2_derived_key);
+            if (FAILED(status))
+            {
+                fprintf(stderr, "Failed to free Bob's derived AES key handle during cleanup. "
+                        "NCryptFreeObject returned: 0x%08x\n",
+                        status);
+            }
+            else
+            {
+                p2_derived_key = NULL;
+                printf("Freed Bob's derived AES key handle.\n");
+            }
         }
         else
         {
             p2_derived_key = NULL;
-            printf("Freed Bob's derved AES key handle.\n");
+            printf("Deleted Bob's derived AES key (and freed the key handle).\n");
         }
     }
 
-    // Is Alice's derived AES key in use? Free it
+    // Is Alice's derived AES key in use? Delete it and free the handle.
     if (p1_derived_key != NULL)
     {
-        status = NCryptFreeObject(p1_derived_key);
+        status = NCryptDeleteKey(p1_derived_key, 0);
         if (FAILED(status))
         {
-            fprintf(stderr, "Failed to free Alice's derived AES key handle. "
-                    "NCryptFreeObject returned: 0x%08x\n",
+            fprintf(stderr, "Failed to delete Alice's derived AES key. "
+                    "NCryptDeleteKey returned: 0x%08x\n",
                     status);
+
+            // If we failed to delete the key, try to free the key handle.
+            status = NCryptFreeObject(p1_derived_key);
+            if (FAILED(status))
+            {
+                fprintf(stderr, "Failed to free Alice's derived AES key handle during cleanup. "
+                        "NCryptFreeObject returned: 0x%08x\n",
+                        status);
+            }
+            else
+            {
+                p1_derived_key = NULL;
+                printf("Freed Alice's derived AES key handle.\n");
+            }
         }
         else
         {
             p1_derived_key = NULL;
-            printf("Freed Alice's derved AES key handle.\n");
+            printf("Deleted Alice's derived AES key (and freed the key handle).\n");
         }
     }
 
@@ -1392,37 +1160,67 @@ cleanup:
         }
     }
 
-    // Is Bob's imported ECDH public key still in use? Free it
+    // Is Bob's imported ECDH public key still in use? Delete it and free the
+    // handle.
     if (p2_ecdh_public_key != NULL)
     {
-        status = NCryptFreeObject(p2_ecdh_public_key);
+        status = NCryptDeleteKey(p2_ecdh_public_key, 0);
         if (FAILED(status))
         {
-            fprintf(stderr, "Failed to free Bob's imported ECDH public key handle. "
-                    "NCryptFreeObject returned: 0x%08x\n",
+            fprintf(stderr, "Failed to delete Bob's imported ECDH public key. "
+                    "NCryptDeleteKey returned: 0x%08x\n",
                     status);
+
+            // If we failed to delete the key, try to free the key handle.
+            status = NCryptFreeObject(p2_ecdh_public_key);
+            if (FAILED(status))
+            {
+                fprintf(stderr, "Failed to free Bob's imported ECDH public key handle during cleanup. "
+                        "NCryptFreeObject returned: 0x%08x\n",
+                        status);
+            }
+            else
+            {
+                p2_ecdh_public_key = NULL;
+                printf("Freed Bob's imported ECDH public key handle.\n");
+            }
         }
         else
         {
             p2_ecdh_public_key = NULL;
-            printf("Freed Bob's imported ECDH public key handle.\n");
+            printf("Deleted Bob's imported ECDH public key (and freed the key handle).\n");
         }
     }
 
-    // Is Alice's imported ECDH public key still in use? Free it
+    // Is Alice's imported ECDH public key still in use? Delete it and free the
+    // handle.
     if (p1_ecdh_public_key != NULL)
     {
-        status = NCryptFreeObject(p1_ecdh_public_key);
+        status = NCryptDeleteKey(p1_ecdh_public_key, 0);
         if (FAILED(status))
         {
-            fprintf(stderr, "Failed to free Alice's imported ECDH public key handle. "
-                    "NCryptFreeObject returned: 0x%08x\n",
+            fprintf(stderr, "Failed to delete Alice's imported ECDH public key. "
+                    "NCryptDeleteKey returned: 0x%08x\n",
                     status);
+
+            // If we failed to delete the key, try to free the key handle.
+            status = NCryptFreeObject(p1_ecdh_public_key);
+            if (FAILED(status))
+            {
+                fprintf(stderr, "Failed to free Alice's imported ECDH public key handle during cleanup. "
+                        "NCryptFreeObject returned: 0x%08x\n",
+                        status);
+            }
+            else
+            {
+                p1_ecdh_public_key = NULL;
+                printf("Freed Alice's imported ECDH public key handle.\n");
+            }
         }
         else
         {
             p1_ecdh_public_key = NULL;
-            printf("Freed Alice's imported ECDH public key handle.\n");
+            printf("Deleted Alice's imported ECDH public key (and freed the key handle).\n");
         }
     }
 
@@ -1440,37 +1238,67 @@ cleanup:
         printf("Freed Alice's exported ECDH public key data buffer.\n");
     }
 
-    // Is Bob's ECDH key handle still in use at this point? If so, free it.
+    // Is Bob's ECDH key handle still in use at this point? If so, delete it
+    // and free the handle.
     if (p2_ecdh_key != NULL)
     {
-        status = NCryptFreeObject(p2_ecdh_key);
+        status = NCryptDeleteKey(p2_ecdh_key, 0);
         if (FAILED(status))
         {
-            fprintf(stderr, "Failed to free Bob's ECDH key handle. "
-                    "NCryptFreeObject returned: 0x%08x\n",
+            fprintf(stderr, "Failed to delete Bob's ECDH key. "
+                    "NCryptDeleteKey returned: 0x%08x\n",
                     status);
+
+            // If we failed to delete the key, try to free the key handle.
+            status = NCryptFreeObject(p2_ecdh_key);
+            if (FAILED(status))
+            {
+                fprintf(stderr, "Failed to free Bob's ECDH key handle during cleanup. "
+                        "NCryptFreeObject returned: 0x%08x\n",
+                        status);
+            }
+            else
+            {
+                p2_ecdh_key = NULL;
+                printf("Freed Bob's ECDH key handle.\n");
+            }
         }
         else
         {
             p2_ecdh_key = NULL;
-            printf("Freed Bob's ECDH key handle.\n");
+            printf("Deleted Bob's ECDH key (and freed the key handle).\n");
         }
     }
 
-    // Is Alice's ECDH key handle still in use at this point? If so, free it.
+    // Is Alice's ECDH key handle still in use at this point? If so, delete it
+    // and free the handle.
     if (p1_ecdh_key != NULL)
     {
-        status = NCryptFreeObject(p1_ecdh_key);
+        status = NCryptDeleteKey(p1_ecdh_key, 0);
         if (FAILED(status))
         {
-            fprintf(stderr, "Failed to free Alice's ECDH key handle. "
-                    "NCryptFreeObject returned: 0x%08x\n",
+            fprintf(stderr, "Failed to delete Alice's ECDH key. "
+                    "NCryptDeleteKey returned: 0x%08x\n",
                     status);
+
+            // If we failed to delete the key, try to free the key handle.
+            status = NCryptFreeObject(p1_ecdh_key);
+            if (FAILED(status))
+            {
+                fprintf(stderr, "Failed to free Alice's ECDH key handle during cleanup. "
+                        "NCryptFreeObject returned: 0x%08x\n",
+                        status);
+            }
+            else
+            {
+                p1_ecdh_key = NULL;
+                printf("Freed Alice's ECDH key handle.\n");
+            }
         }
         else
         {
             p1_ecdh_key = NULL;
-            printf("Freed Alice's ECDH key handle.\n");
+            printf("Deleted Alice's ECDH key (and freed the key handle).\n");
         }
     }
 

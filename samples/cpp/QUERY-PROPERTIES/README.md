@@ -6,8 +6,7 @@ This sample demonstrates querying of the following properties that AziHSM expose
 
 | Property (string)                       | Description                                              | Content                                                                 |
 |-----------------------------------------|----------------------------------------------------------|-------------------------------------------------------------------------|
-| AZIHSM_DEVICE_CERT_CHAIN_PROPERTY       | Certificate chain of the device. Useful for attestation. | List of certificates in PEM format, separated by `\n`. Leaf cert first. |
-| AZIHSM_DEVICE_MAX_STORAGE_SIZE_PROPERTY | Maximum storage capacity of the device, in Kilo Bytes.       | 4 bytes buffer holding unsigned 32-bit integer. Little Endian.          |
+| AZIHSM_DEVICE_MAX_STORAGE_SIZE_PROPERTY | Maximum storage capacity of the device, in Kilo Bytes.   | 4 bytes buffer holding unsigned 32-bit integer. Little Endian.          |
 | AZIHSM_DEVICE_MAX_KEY_COUNT_PROPERTY    | Maximum number of keys can be stored on the device.      | 4 bytes buffer holding unsigned 32-bit integer. Little Endian.          |
 
 There are other properties that are tied to keys:
@@ -49,10 +48,6 @@ AziHSM Demonstration: Querying properties
 Open AziHSM Provider
 --------------------
 Opened NCrypt Storage Provider handle: 0x0fee6ac0
-
-Query AZIHSM_DEVICE_CERT_CHAIN_PROPERTY
----------------------------------------
-Retrieved AZIHSM_DEVICE_CERT_CHAIN_PROPERTY successfully. Buffer size: 619
 
 Query AZIHSM_DEVICE_MAX_STORAGE_SIZE_PROPERTY
 ---------------------------------------------

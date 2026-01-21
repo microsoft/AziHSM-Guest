@@ -353,7 +353,33 @@ static SECURITY_STATUS import_wrapped_key(
 cleanup:
     if (importedKey)
     {
-        NCryptFreeObject(importedKey);
+        // Call `NCryptDeleteKey` to delete the partially-imported key (and
+        // free the key handle) if we failed any of the above import steps.
+        SECURITY_STATUS cleanup_status = NCryptDeleteKey(importedKey, 0);
+        if (FAILED(cleanup_status))
+        {
+            fprintf(stderr, "Failed to delete imported key during cleanup. "
+                    "NCryptDeleteKey returned: 0x%08x\n",
+                    cleanup_status);
+
+            // If we failed to delete the key during cleanup, try to free the
+            // key handle.
+            cleanup_status = NCryptFreeObject(importedKey);
+            if (FAILED(cleanup_status))
+            {
+                fprintf(stderr, "Failed to free imported key handle during cleanup. "
+                        "NCryptFreeObject returned: 0x%08x\n",
+                        cleanup_status);
+            }
+            else
+            {
+                importedKey = NULL;
+            }
+        }
+        else
+        {
+            importedKey = NULL;
+        }
     }
     return status;
 }
@@ -805,12 +831,45 @@ cleanup:
 
     if (importedKey)
     {
-        NCryptFreeObject(importedKey);
+        // Call `NCryptDeleteKey` to delete the key (and free the key handle).
+        SECURITY_STATUS cleanup_status = NCryptDeleteKey(importedKey, 0);
+        if (FAILED(cleanup_status))
+        {
+            fprintf(stderr, "Failed to delete imported key during cleanup. "
+                    "NCryptDeleteKey returned: 0x%08x\n",
+                    cleanup_status);
+
+            // If we failed to delete the key during cleanup, try to free the
+            // key handle.
+            cleanup_status = NCryptFreeObject(importedKey);
+            if (FAILED(cleanup_status))
+            {
+                fprintf(stderr, "Failed to free imported key handle during cleanup. "
+                        "NCryptFreeObject returned: 0x%08x\n",
+                        cleanup_status);
+            }
+            else
+            {
+                importedKey = NULL;
+            }
+        }
+        else
+        {
+            importedKey = NULL;
+        }
     }
 
     if (importKey)
     {
-        NCryptFreeObject(importKey);
+        // Free our handle to the AziHSM import key (built-in unwrapping key);
+        // we do not need to delete this key.
+        SECURITY_STATUS cleanup_status = NCryptFreeObject(importKey);
+        if (FAILED(cleanup_status))
+        {
+            fprintf(stderr, "Failed to free imported key handle during cleanup. "
+                    "NCryptFreeObject returned: 0x%08x\n",
+                    cleanup_status);
+        }
     }
 
     if (provider)

@@ -5,10 +5,8 @@ This sample demonstrates the AziHSM in the following scenario:
 
 1. Generate two ECDH public/private key pairs. (Each key pair represents a separate party: "Alice" (party 1) and "Bob" (party 2))
 2. Perform ECDH key exchange, to exchange public keys between the two parties, and generate a shared secret.
-3. Use KBKDF or HKDF to derive the same AES key (using the shared secret) for both parties.
-    * KBKDF ("Key Based Key Derivation Function") refers to the **SP800-108 HMAC in counter mode** KDF, as seen [here](https://learn.microsoft.com/en-us/windows/win32/api/bcrypt/nf-bcrypt-bcryptkeyderivation) in the NCrypt API documentation.
+3. Use HKDF to derive the same AES key (using the shared secret) for both parties.
     * HKDF ("HMAC-based Key Derivation Function") is defined in [IETF RFC 5869](https://datatracker.ietf.org/doc/html/rfc5869), and is referred to in NCrypt by the `BCRYPT_HKDF_ALGORITHM` string.
-    * **NOTE:** The user can choose between demonstrating KBKDF or HKDF via a command-line argument.
 4. Perform AES-CBC encryption and decryption to verify that the two derived AES keys are identical.
 
 This scenario shows one way to utilize the AziHSM to establish a secure communication channel between two parties.
@@ -37,18 +35,10 @@ This will populate Visual Studio with the sample project's contents.
 Build and run the project with `F5`, or by selecting `Build > Build Solution`.
 An executable will be produced within the project directory, which can be executed on the Windows command-line (PowerShell or Command Prompt).
 
-The sample accepts a single command-line argument, which is used to choose between the two KDFs (Key Derivation Functions) supported by AziHSM: KBKDF and HKDF.
-Run the executable in one of the following ways:
+The executable requires no command-line input; simply execute it like so:
 
 ```powershell
-# Provide NO argument to choose KBKDF by default:
 .\ECDH-KDF-AESCBC.exe
-
-# To select KBKDF:
-.\ECDH-KDF-AESCBC.exe KBKDF
-
-# To select HKDF:
-.\ECDH-KDF-AESCBC.exe HKDF
 ```
 
 You should see output similar to this:
@@ -59,33 +49,34 @@ You should see output similar to this:
 ```
 AziHSM Demonstration: ECDH Generate --> ECDH Exchange --> KDF AES --> AES-CBC Enc/Dec
 =====================================================================================
-Opened NCrypt Storage Provider handle: 0xbce1ce80
+Keys will be derived using HKDF.
+Opened NCrypt Storage Provider handle: 0xb9f1dd50
 
-Step 1: ECHD Key Pair Generate
+Step 1: ECDH Key Pair Generate
 ------------------------------
-Generated ECDH key for Alice: 0xbce2a9e0
-Generated ECDH key for Bob: 0xbce2a6a0
+Generated ECDH key for Alice: 0xb9f325b0
+Generated ECDH key for Bob: 0xb9f31cf0
 
 Step 2: ECDH Secret Exchange
 ----------------------------
 Exported Alice's ECDH public key: 72 bytes of data
 Exported Bob's ECDH public key: 72 bytes of data
-Imported Alice's ECDH public key: 0xbce29be0
-Imported Bob's ECDH public key: 0xbce29e60
-Generated Alice's shared secret: 0xbce237b0
-Generated Bob's shared secret: 0xbce237d0
+Imported Alice's ECDH public key: 0xb9f32570
+Imported Bob's ECDH public key: 0xb9f31a30
+Generated Alice's shared secret: 0xb9f2c9f0
+Generated Bob's shared secret: 0xb9f2c9b0
 
-Step 3: KBKDF AES
------------------
-Derived Alice's AES key: 0xbce2a5a0
-Derived Bob's AES key: 0xbce2a320
+Step 3: HKDF AES
+----------------
+Derived Alice's AES key using HKDF: 0xb9f31b70
+Derived Bob's AES key using HKDF: 0xb9f325f0
 
 Step 4: AES-CBC Encrypt/Decrypt
 -------------------------------
-Plaintext to be encrypted: [c8 90 a5 48 4e 89 48 6d cf 8a 4f 95 7a 0a 59 ec 54 e9 ef c9 cf f4 9a 1c 5b 28 af 8c 1e 8f fd 82 fb b3 4c d6 59 3c e3 86 40 5f b6 95 9d d2 b5 ac 5e 28 45 6c 3f 0a f2 6d 0a bf c9 20 08 fd 53 62 5e 36 d1 a8 4e fa 79 67 8f 06 3d 37 ec e3 7b 91 40 3b ff 7e 05 61 b4 dc 88 8b 6b 93 a3 f6 fd 47 3a 01 7e 37 2a bd 0f e4 59 eb b6 a2 e5 ec b4 19 91 4e 9a 84 24 3c 96 bd 04 03 b9 68 3c c7 17 9d]
-AES-CBC Initialization Vector: [e7 e4 b3 e0 4b 73 9f 71 ca 68 4c b1 e0 fd 0d b4]
-Encrypted plaintext with Alice's AES key: [d0 2e a1 6a 30 e9 0d fd 83 29 6b fc 4a e6 f4 a1 6d 38 03 cc 57 5d 2f a5 f9 87 ce bc 83 81 86 6f b1 d1 1d 77 fc 39 92 a3 ea 40 1a fb a1 e3 8c ce c7 f7 82 83 47 bf ed b3 01 fc be 4c 50 dc 7c 26 25 65 5b 1e c9 f0 89 38 a2 b8 0f 76 11 cb f0 00 9b bf 8f 6b d9 9c 10 cb 74 79 3c a3 bc 09 00 03 80 ce 8e 88 87 ef da 5d 93 44 36 df 74 87 80 cd e3 4c ec 25 12 cb c2 cf e3 1c 34 85 9d b8 64 d6]
-Decrypted ciphertext with Bob's AES key: [c8 90 a5 48 4e 89 48 6d cf 8a 4f 95 7a 0a 59 ec 54 e9 ef c9 cf f4 9a 1c 5b 28 af 8c 1e 8f fd 82 fb b3 4c d6 59 3c e3 86 40 5f b6 95 9d d2 b5 ac 5e 28 45 6c 3f 0a f2 6d 0a bf c9 20 08 fd 53 62 5e 36 d1 a8 4e fa 79 67 8f 06 3d 37 ec e3 7b 91 40 3b ff 7e 05 61 b4 dc 88 8b 6b 93 a3 f6 fd 47 3a 01 7e 37 2a bd 0f e4 59 eb b6 a2 e5 ec b4 19 91 4e 9a 84 24 3c 96 bd 04 03 b9 68 3c c7 17 9d]
+Plaintext to be encrypted: [bb e4 27 5f ce f0 04 5b 15 7e ab ba 8a bc 47 07 5b 0a 0c d1 6a e7 d3 a6 e8 77 13 13 3e a2 9f 6b b6 5e 77 96 26 63 fe 7f 72 2c 11 13 20 6d 8d e5 3b cb 2e 2e c6 05 56 0e f2 cf 4c 5b 8e 95 08 5b de 7a 21 1e dc d2 82 e4 8c e3 b2 cf 1a f8 1e c0 94 f9 6c 0a 57 5b 70 45 93 cd 66 9e 4a d2 00 4e 51 a4 05 32 88 4d e5 99 d8 90 57 07 71 8c db 41 1d 5a b1 26 f4 c6 58 3e d4 6c a6 de 47 09 7e 5e]
+AES-CBC Initialization Vector: [1a cd 7c 08 e1 33 86 de 09 4e ed b0 92 1c 16 3b]
+Encrypted plaintext with Alice's AES key: [c0 90 9e 76 7a 5f a7 5e 39 2a da 4c c6 bf ad 4c 7b 97 11 ec 4d 93 bd 34 8c c5 d8 3a 46 75 c2 a9 55 4d 4c b0 b1 bc 5b ee 56 16 64 e1 29 5b bb a0 18 03 1e 97 e9 6b 47 74 48 52 3f 8d ae 63 26 92 18 0a 53 fe 07 0e 56 49 c3 18 06 74 43 91 b2 9b 73 06 c4 6d 3b c8 35 b0 f2 17 3d c4 96 9b 50 31 63 cd 57 ef e7 fe c8 f5 19 d2 2d 32 50 0f 50 13 79 28 57 69 98 4e c4 28 6d 1b a4 25 a4 49 5a 4c]
+Decrypted ciphertext with Bob's AES key: [bb e4 27 5f ce f0 04 5b 15 7e ab ba 8a bc 47 07 5b 0a 0c d1 6a e7 d3 a6 e8 77 13 13 3e a2 9f 6b b6 5e 77 96 26 63 fe 7f 72 2c 11 13 20 6d 8d e5 3b cb 2e 2e c6 05 56 0e f2 cf 4c 5b 8e 95 08 5b de 7a 21 1e dc d2 82 e4 8c e3 b2 cf 1a f8 1e c0 94 f9 6c 0a 57 5b 70 45 93 cd 66 9e 4a d2 00 4e 51 a4 05 32 88 4d e5 99 d8 90 57 07 71 8c db 41 1d 5a b1 26 f4 c6 58 3e d4 6c a6 de 47 09 7e 5e]
 The decrypted ciphertext matches the original plaintext!
 
 Cleaning Up

@@ -35,6 +35,5 @@ The following cryptographic operations are supported by AziHSM:
         * ECC P384
         * ECC P521
 * **Key Derivation**
-    * KBKDF ("Key Based Key Derivation Function") - refers to the **SP800-108 HMAC in counter mode** KDF, as seen [here](https://learn.microsoft.com/en-us/windows/win32/api/bcrypt/nf-bcrypt-bcryptkeyderivation) in the NCrypt API documentation.
     * HKDF ("HMAC-based Key Derivation Function") - as defined in [IETF RFC 5869](https://datatracker.ietf.org/doc/html/rfc5869), and referred to in NCrypt by the `BCRYPT_HKDF_ALGORITHM` string.
 
