@@ -7,14 +7,9 @@
 
 #pragma once
 
-// Use `WIN32_NO_STATUS` to prevent macro-redefinition warnings in `ntstatus.h`
-#define WIN32_NO_STATUS
-#include <windows.h>
-#undef WIN32_NO_STATUS
-#include <ntstatus.h>
-#include <winerror.h>
+#include "Utils.h"
 
-#include <cstdio>
+#include <vector>
 
 #define AES_KEY_WRAP_PAD_IV 0xA65959A6 // KWP
 #define AES_KEY_WRAP_PAD_AES_BLOCK_LENGTH 16
@@ -24,7 +19,7 @@
 const DWORD AES_KEY_BIT_SIZE = 256;
 
 // Helper function to create random AES key in BCrypt.
-static NTSTATUS CreateAesKey(BCRYPT_KEY_HANDLE* outAesKey, PBYTE* outBufferAesKey, DWORD* outBufferAesKeySize)
+inline NTSTATUS CreateAesKey(BCRYPT_KEY_HANDLE* outAesKey, PBYTE* outBufferAesKey, DWORD* outBufferAesKeySize)
 {
     NTSTATUS status = STATUS_SUCCESS;
 
@@ -81,7 +76,7 @@ cleanup:
 }
 
 // Helper function to load and create RSA Export Key in BCrypt.
-static NTSTATUS CreateRsaExportKey(PBYTE bufferRsaExportKeyBin,
+inline NTSTATUS CreateRsaExportKey(PBYTE bufferRsaExportKeyBin,
     DWORD bufferRsaExportKeyBinSize,
     BCRYPT_KEY_HANDLE* outRsaExportKey)
 {
@@ -127,7 +122,7 @@ cleanup:
 }
 
 // Helper function to encrypt AES key with RSA Export Key in BCrypt.
-static NTSTATUS EncryptAesWithRsaExportKey(PBYTE bufferAesKey,
+inline NTSTATUS EncryptAesWithRsaExportKey(PBYTE bufferAesKey,
     DWORD bufferAesKeySize,
     BCRYPT_KEY_HANDLE rsaExportKey,
     LPCWSTR algId,
@@ -196,10 +191,10 @@ cleanup:
 }
 
 // Helper function to implement the "4.1. Extended Key Wrapping Process" in RFC 5649.
-// This should only be used for this sample for demonstration purposes.
-// Do not use this in production code.
-// Please reference OpenSSL EVP_aes_256_wrap_pad
-static NTSTATUS AesKeyWrapPad(BCRYPT_KEY_HANDLE hAesKey, PBYTE pbInput, ULONG cbInput, PBYTE pbOutput, ULONG* pcbOutput)
+// THIS IMPLEMENTATION IS FOR THIS SAMPLE USAGE ONLY
+// DO NOT USE IN PRODUCTION
+// Please also reference OpenSSL EVP_aes_256_wrap_pad
+inline NTSTATUS AesKeyWrapPad(BCRYPT_KEY_HANDLE hAesKey, PBYTE pbInput, ULONG cbInput, PBYTE pbOutput, ULONG* pcbOutput)
 {
     NTSTATUS status = STATUS_SUCCESS;
 
@@ -308,7 +303,7 @@ static void CreateBCryptStruct(PBYTE bufferEncryptedAesKey,
 {
     // Calculate the actual size of struct
     // Including string trailing zero
-    ULONG algIdSize = (ULONG) ((wcslen(algId) + 1) * sizeof(wchar_t));
+    ULONG algIdSize = (ULONG)((wcslen(algId) + 1) * sizeof(wchar_t));
     DWORD structSize =
         sizeof(BCRYPT_PKCS11_RSA_AES_WRAP_BLOB) + bufferEncryptedAesKeySize + bufferWrappedRsaSize + algIdSize;
     PBYTE buffer = new BYTE[structSize];
@@ -341,13 +336,12 @@ static void CreateBCryptStruct(PBYTE bufferEncryptedAesKey,
 // NCRYPT_SHA256_ALGORITHM
 // NCRYPT_SHA384_ALGORITHM
 // NCRYPT_SHA512_ALGORITHM
-NTSTATUS ExportKeyWrapped(PBYTE bufferToBeImportedKey,
+NTSTATUS WrapKey(PBYTE bufferToBeImportedKey,
     DWORD bufferToBeImportedKeySize,
     PBYTE bufferExportKey,
     DWORD bufferExportKeySize,
     LPCWSTR hashAlgId,
-    PBYTE* outKeyBlob,
-    DWORD* outKeyBlobSize)
+    std::vector<BYTE>& out)
 {
     NTSTATUS status = STATUS_SUCCESS;
 
@@ -363,6 +357,10 @@ NTSTATUS ExportKeyWrapped(PBYTE bufferToBeImportedKey,
 
     PBYTE bufferWrappedRsa = NULL;
     DWORD bufferWrappedRsaSize = 0;
+
+    // Points to BCRYPT_PKCS11_RSA_AES_WRAP_BLOB struct
+    PBYTE bufferStruct = NULL;
+    DWORD bufferStructSize = 0;
 
     // 1. Create Ephemeral AES key
     status = CreateAesKey(&aesKey, &bufferAesKey, &bufferAesKeySize);
@@ -396,11 +394,13 @@ NTSTATUS ExportKeyWrapped(PBYTE bufferToBeImportedKey,
         bufferWrappedRsa,
         bufferWrappedRsaSize,
         hashAlgId,
-        outKeyBlob,
-        outKeyBlobSize);
+        &bufferStruct,
+        &bufferStructSize);
+
+    out = std::vector<BYTE>(bufferStruct, bufferStruct + bufferStructSize);
 
     status = STATUS_SUCCESS;
-    printf("Key wrapped successfully. Key Blob Size: %lu bytes.\n", *outKeyBlobSize);
+    printf("Key wrapped successfully. Key Blob Size: %lu bytes.\n", bufferStructSize);
 
 cleanup:
     if (bufferWrappedRsa)
@@ -422,6 +422,10 @@ cleanup:
     if (rsaExportKey)
     {
         BCryptDestroyKey(rsaExportKey);
+    }
+    if (bufferStruct)
+    {
+        delete[] bufferStruct;
     }
     return status;
 }

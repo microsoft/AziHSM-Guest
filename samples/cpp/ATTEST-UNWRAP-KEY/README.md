@@ -1,5 +1,10 @@
-AziHSM Sample - ATTEST-UNWRAP-KEY
-===============================
+# AziHSM Sample - ATTEST-UNWRAP-KEY
+
+This sample will demonstrate a **mocked** Secure Key Release flow for AziHSM, where user attests AziHSM and securely imports their private key from external services like Azure Key Vault.
+
+External dependencies like Microsoft Azure Attestation and Azure Key Vault are mocked, so you can run this sample locally without additional setup. This also enables you to import any RSA or ECDSA key into AziHSM for quick experiments.
+
+> For real-world Secure Key Release sample, see SECURE-KEY-RELEASE.cpp
 
 This sample demonstrates the AziHSM in the following scenario:
 
@@ -12,28 +17,9 @@ This sample demonstrates the AziHSM in the following scenario:
 5. Perform typical workload like hash signing and verification using the
    imported RSA key.
 
-This sample shows the Secure Key Release flow, where user attests AziHSM and securely imports their private key from external services like Azure Key Vault. 
-*Please note that [Microsoft Azure Attestation Service](https://learn.microsoft.com/en-us/azure/attestation/overview) does not support AziHSM attestation as of today, so attestation is mocked. Without the attestation token from Microsoft Azure Attestation Service, we are unable to perform a secure key release from [Azure Manged HSM Service](https://learn.microsoft.com/en-us/azure/key-vault/managed-hsm/overview) and therefore we are mocking that as well.*
+## How to run
 
-Building & Running the Code
----------------------------
-
-### Prerequisite - AziHSM Dependencies
-
-Before you can run this sample, you'll need to ensure you have all AziHSM dependencies installed onto your system.
-Please the the installation guide under `docs/` in this repository.
-
-### Building & Running
-
-To build the code, you'll need to download both *this* sample's directory, as well as the `include/` directory, which contains the required header files.
-
-We recommend downloading the entire `samples/` directory, to maintain the directory hierarchy expected by the individual Visual Studio projects.
-(This Visual Studio project is configured to search for the AziHSM `include/` directory one level above the project directory. However, if necessary, [this can be changed in the project settings](https://learn.microsoft.com/en-us/cpp/build/working-with-project-properties).)
-
-Open `ATTEST-UNWRAP-KEY.sln` with Visual Studio to view the project.
-
-The sample accepts a single command-line argument, which is used to choose between two key types: RSA and ECDSA.
-Run the executable in one of the following ways:
+> See top-level [README.md](../README.md) for prerequisites.
 
 ```powershell
 # Provide NO argument to choose RSA by default:
@@ -55,17 +41,11 @@ You should see output similar to this:
 AziHSM Demonstration:
 Get Quote/Collateral --> Mock Attestation --> Mock Key Wrap and Release --> Import --> Sign/Verify
 ==================================================================================================
-*Please note that [Microsoft Azure Attestation Service](https://learn.microsoft.com/en-us/azure/attestation/overview) does not support AziHSM attestation as of today, so attestation is mocked. Without the attestation token from Microsoft Azure Attestation Service, we are unable to perform a secure key release from [Azure Manged HSM Service](https://learn.microsoft.com/en-us/azure/key-vault/managed-hsm/overview) and therefore we are mocking that as well.*
-
-No key type specified. Defaulting to import RSA key.
-Usage:
-    ATTEST-UNWRAP-KEY.exe [rsa|ecdsa]
 
 Working with RSA key.
 
 Step 1: Get Quote and Collateral
 --------------------------------
-Opened NCrypt Storage Provider handle: 0xd4c5b640
 
 Step 2: Mock Attestation
 ------------------------
@@ -86,9 +66,6 @@ Signature matches pre-calculated value
 
 Sample finished successfully
 ----------------------------
-
-Done Cleaning Up
-----------------
 ```
 
 </details>
@@ -126,17 +103,3 @@ To parse it, you can use the helper function `azihsm_parse_claim` from header fi
 
 The attestation report wil be a binary data with opaque format.  
 The certificate will be a text blob of multiple X.509 certificates in PEM format, separated by newline `\n`.
-
-
-Included Header Files
----------------------
-
-You'll notice that the sample's C++ file includes multiple header files:
-
-* `AziHSM.h`
-    * This header file defines several strings that are necessary for interfacing with the AziHSM via NCrypt.
-    * For more information on this file, please see [this README](../include/AziHSM/README.md).
-* `RsaWrapUtils.h`
-    * This header file defines helper functions related to exporting a RSA key in the PKCS#11 format.
-* `Utils.h`
-    * This header file defines generic helper functions used by other samples.

@@ -1,0 +1,84 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.37027.11
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ATTEST-UNWRAP-KEY", "ATTEST-UNWRAP-KEY\ATTEST-UNWRAP-KEY.vcxproj", "{1CC2EA16-0249-401B-9C84-06AA10148613}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "include", "include", "{86338086-16C8-45EF-B115-16C1083A217F}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "AziHSM", "AziHSM", "{DBFE1C8F-AF71-45EE-9649-CF2D445A8810}"
+	ProjectSection(SolutionItems) = preProject
+		include\AziHSM\AziHSM.h = include\AziHSM\AziHSM.h
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Utils", "Utils", "{EDF4AEE3-92C4-4E48-9188-A5E03EF89EA1}"
+	ProjectSection(SolutionItems) = preProject
+		include\Utils\CryptoUtils.h = include\Utils\CryptoUtils.h
+		include\Utils\RsaWrapUtils.h = include\Utils\RsaWrapUtils.h
+		include\Utils\Utils.h = include\Utils\Utils.h
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SECURE-KEY-RELEASE", "SECURE-KEY-RELEASE\SECURE-KEY-RELEASE.vcxproj", "{05E5A9C8-30CE-4567-A9FD-39A6021DF15E}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{811DF598-5CE2-4600-964B-8B8089716DD3}"
+	ProjectSection(SolutionItems) = preProject
+		README.md = README.md
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "QUERY-PROPERTIES", "QUERY-PROPERTIES\QUERY-PROPERTIES.vcxproj", "{17DF07E5-9F59-4405-9615-C77AF207274F}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RSA-IMPORT-ENCRYPT-DECRYPT", "RSA-IMPORT-ENCRYPT-DECRYPT\RSA-IMPORT-ENCRYPT-DECRYPT.vcxproj", "{2C3A5360-551C-4A9F-8BE3-2033DEA49ADA}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AES-GCM-ENCRYPT-DECRYPT", "AES-GCM-ENCRYPT-DECRYPT\AES-GCM-ENCRYPT-DECRYPT.vcxproj", "{267C6918-2E9D-4878-BAFD-1E8552D75277}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AES-XTS-ENCRYPT-DECRYPT", "AES-XTS-ENCRYPT-DECRYPT\AES-XTS-ENCRYPT-DECRYPT.vcxproj", "{D54E18EC-3992-4EBA-B4BC-A24FF36F8420}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ECDH-KDF-AES", "ECDH-KDF-AES\ECDH-KDF-AES.vcxproj", "{E7BF59F4-D9A0-432F-9825-2FD94EBFADCF}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{1CC2EA16-0249-401B-9C84-06AA10148613}.Debug|x64.ActiveCfg = Debug|x64
+		{1CC2EA16-0249-401B-9C84-06AA10148613}.Debug|x64.Build.0 = Debug|x64
+		{1CC2EA16-0249-401B-9C84-06AA10148613}.Release|x64.ActiveCfg = Release|x64
+		{1CC2EA16-0249-401B-9C84-06AA10148613}.Release|x64.Build.0 = Release|x64
+		{05E5A9C8-30CE-4567-A9FD-39A6021DF15E}.Debug|x64.ActiveCfg = Debug|x64
+		{05E5A9C8-30CE-4567-A9FD-39A6021DF15E}.Debug|x64.Build.0 = Debug|x64
+		{05E5A9C8-30CE-4567-A9FD-39A6021DF15E}.Release|x64.ActiveCfg = Release|x64
+		{05E5A9C8-30CE-4567-A9FD-39A6021DF15E}.Release|x64.Build.0 = Release|x64
+		{17DF07E5-9F59-4405-9615-C77AF207274F}.Debug|x64.ActiveCfg = Debug|x64
+		{17DF07E5-9F59-4405-9615-C77AF207274F}.Debug|x64.Build.0 = Debug|x64
+		{17DF07E5-9F59-4405-9615-C77AF207274F}.Release|x64.ActiveCfg = Release|x64
+		{17DF07E5-9F59-4405-9615-C77AF207274F}.Release|x64.Build.0 = Release|x64
+		{2C3A5360-551C-4A9F-8BE3-2033DEA49ADA}.Debug|x64.ActiveCfg = Debug|x64
+		{2C3A5360-551C-4A9F-8BE3-2033DEA49ADA}.Debug|x64.Build.0 = Debug|x64
+		{2C3A5360-551C-4A9F-8BE3-2033DEA49ADA}.Release|x64.ActiveCfg = Release|x64
+		{2C3A5360-551C-4A9F-8BE3-2033DEA49ADA}.Release|x64.Build.0 = Release|x64
+		{267C6918-2E9D-4878-BAFD-1E8552D75277}.Debug|x64.ActiveCfg = Debug|x64
+		{267C6918-2E9D-4878-BAFD-1E8552D75277}.Debug|x64.Build.0 = Debug|x64
+		{267C6918-2E9D-4878-BAFD-1E8552D75277}.Release|x64.ActiveCfg = Release|x64
+		{267C6918-2E9D-4878-BAFD-1E8552D75277}.Release|x64.Build.0 = Release|x64
+		{D54E18EC-3992-4EBA-B4BC-A24FF36F8420}.Debug|x64.ActiveCfg = Debug|x64
+		{D54E18EC-3992-4EBA-B4BC-A24FF36F8420}.Debug|x64.Build.0 = Debug|x64
+		{D54E18EC-3992-4EBA-B4BC-A24FF36F8420}.Release|x64.ActiveCfg = Release|x64
+		{D54E18EC-3992-4EBA-B4BC-A24FF36F8420}.Release|x64.Build.0 = Release|x64
+		{E7BF59F4-D9A0-432F-9825-2FD94EBFADCF}.Debug|x64.ActiveCfg = Debug|x64
+		{E7BF59F4-D9A0-432F-9825-2FD94EBFADCF}.Debug|x64.Build.0 = Debug|x64
+		{E7BF59F4-D9A0-432F-9825-2FD94EBFADCF}.Release|x64.ActiveCfg = Release|x64
+		{E7BF59F4-D9A0-432F-9825-2FD94EBFADCF}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{DBFE1C8F-AF71-45EE-9649-CF2D445A8810} = {86338086-16C8-45EF-B115-16C1083A217F}
+		{EDF4AEE3-92C4-4E48-9188-A5E03EF89EA1} = {86338086-16C8-45EF-B115-16C1083A217F}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {016E95FB-B04C-4B39-B0CE-E1B432950CEE}
+	EndGlobalSection
+EndGlobal

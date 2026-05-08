@@ -43,7 +43,19 @@ $script:SYMCRYPT_FILE_NAME = "symcrypt.dll"
 $script:SYMCRYPT_INSTALL_DIR = "$env:SYSTEMROOT\System32"
 $script:SYMCRYPT_REPO_OWNER = "microsoft"
 $script:SYMCRYPT_REPO_NAME = "SymCrypt"
-$script:SYMCRYPT_REPO_RELEASE = "v103.8.0"
+$script:SYMCRYPT_REPO_RELEASE = "v103.11.0"
+
+$script:SIGNATURE_VERIFICATION_DISABLED = $false
+$script:SIGNATURE_VERIFICATION_GETDEVICEINFO_EXPECTED_SUBJECT_CN = "(Microsoft Azure Code Sign|Microsoft Corporation|Azure Public Services RSA Code Sign)"
+$script:SIGNATURE_VERIFICATION_AZIHSM_KSP_EXPECTED_SUBJECT_CN = "(Microsoft Azure Code Sign|Microsoft Corporation|Azure Public Services RSA Code Sign)"
+$script:SIGNATURE_VERIFICATION_AZIHSM_DRIVER_EXPECTED_SUBJECT_CN = "Microsoft Windows Hardware Compatibility Publisher"
+$script:SIGNATURE_VERIFICATION_SYMCRYPT_EXPECTED_SUBJECT_CN = "Microsoft Corporation"
+# When verifying the driver file(s)' signature, we only verify the `.cat`
+# (catalog) file. The `.cat` file represents a signature for all files in the
+# driver package.
+#
+# https://learn.microsoft.com/en-us/windows-hardware/drivers/install/catalog-files
+$script:SIGNATURE_VERIFICATION_AZIHSM_DRIVER_FILES_TO_VERIFY = @("azihsmvf.cat")
 
 # A small class used to store version compatibility information for different
 # AziHSM device firmware versions.
@@ -210,6 +222,101 @@ function sanitize_fw_version
         return $table["$FwVersion"]
     }
     return "$FwVersion"
+}
+
+# Helper function that examines a provided file and ensures it is properly
+# signed by Microsoft.
+#
+# Returns a value indicating a successful (or failed) verification.
+function verify_file_signature
+{
+    Param
+    (
+        [Parameter(Mandatory=$true)]
+        [string]$FilePath,
+        [Parameter(Mandatory=$false)]
+        [string]$ExpectedSubjectCn="$script:SIGNATURE_VERIFICATION_AZIHSM_KSP_EXPECTED_SUBJECT_CN"
+    )
+
+    # Attempt to retrieve the file's signature
+    $sig = Get-AuthenticodeSignature -FilePath "$FilePath"
+
+    # Report signature details
+    $msg = "Signature details for file `"$FilePath`":"
+    $msg = "$msg Status=`"$($sig.Status)`","
+    $msg = "$msg StatusMessage=`"$($sig.StatusMessage)`","
+    $msg = "$msg SignatureType=`"$($sig.SignatureType)`","
+
+    # Retrieve the inner certificate that signed the file.
+    $cert = $sig.SignerCertificate
+    if ($cert)
+    {
+        # Add certificate details to the lgo message, then write it out.
+        $msg = "$msg SignerCertificate.Subject=`"$($cert.Subject)`","
+        $msg = "$msg SignerCertificate.Issuer=`"$($cert.Issuer)`","
+        $msg = "$msg SignerCertificate.Thumbprint=`"$($cert.Thumbprint)`""
+        $msg = "$msg SignerCertificate.SerialNumber=`"$($cert.SerialNumber)`""
+        $msg = "$msg SignerCertificate.NotBefore=`"$($cert.NotBefore)`""
+        $msg = "$msg SignerCertificate.NotAfter=`"$($cert.NotAfter)`""
+        Write-Host "$msg"
+
+        # Split the subject into `KEY=VALUE` pairs (which are separated by
+        # commas) and iterate through them.
+        $subject_pairs = $cert.Subject.Split(",")
+        $subject_cn_verified = $false
+        foreach ($pair in $subject_pairs)
+        {
+            # Split each pair by `KEY=VALUE`; skip anything that doesn't parse.
+            $kv = $pair.Split("=", 2)
+            if ($kv.Length -ne 2)
+            {
+                continue
+            }
+            $key = $kv[0].Trim()
+            $value = $kv[1].Trim()
+
+            # Look for the `CN` key. If found, make sure it matches the expected
+            # value.
+            if ($key -eq "CN")
+            {
+                $regex = [regex]::new("$ExpectedSubjectCn")
+                if (-not $regex.IsMatch("$value"))
+                {
+                    Write-Error "Failed to verify signature of file `"$FilePath`": the signer certificate's subject CN (`"$value`") does not match the expected subject CN Regex (`"$ExpectedSubjectCn`")."
+                    return $script:STATUS_FAIL
+                }
+                $subject_cn_verified = $true
+            }
+        }
+
+        # Make sure the CN was verified in the above loop. If not, this means
+        # the certificate didn't include a CN.
+        if (-not $subject_cn_verified)
+        {
+            Write-Error "Failed to verify signature of file `"$FilePath`": the signer certificate's subject (`"$($cert.Subject)`") does not contain a CN field, so we were unable to verify that the signer is correct."
+            return $script:STATUS_FAIL
+        }
+    }
+    else
+    {
+        Write-Host "$msg"
+    }
+
+    # Make sure the status of the signature is valid.
+    if ($sig.Status -ne "Valid")
+    {
+        Write-Error "File `"$FilePath`" does not have a valid signature. Signature status is: `"$($sig.Status)`"."
+        return $script:STATUS_FAIL
+    }
+
+    # If there is no certificate, print and throw an error.
+    if ((-not $cert) -or $sig.SignatureType -eq "None")
+    {
+        Write-Error "File `"$FilePath`" is not signed."
+        return $script:STATUS_FAIL
+    }
+
+    return $script:STATUS_SUCCESS
 }
 
 # Helper function for spawning a process and waiting for it to complete.
@@ -613,6 +720,18 @@ function verify_getdeviceinfo_file
         return $script:STATUS_FAIL
     }
 
+    # Check for a valid signature on the file.
+    if (-not $script:SIGNATURE_VERIFICATION_DISABLED)
+    {
+        $verify_result = verify_file_signature -FilePath "$Path" `
+                                               -ExpectedSubjectCn "$script:SIGNATURE_VERIFICATION_GETDEVICEINFO_EXPECTED_SUBJECT_CN"
+        if ($verify_result -ne $script:STATUS_SUCCESS)
+        {
+            Write-Error "Failed to verify the signature of GetDeviceInfo file: `"$Path`"."
+            return $script:STATUS_FAIL
+        }
+    }
+
     return $script:STATUS_SUCCESS
 }
 
@@ -781,6 +900,20 @@ function verify_driver_files
         {
             Write-Warning "Directory `"$Path`" does not contain needed driver file: `"$filename`"."
             return $script:STATUS_FAIL
+        }
+
+        # If this file is one that we should check for a valid signature, do so
+        # now.
+        if ((-not $script:SIGNATURE_VERIFICATION_DISABLED) -and
+            ($script:SIGNATURE_VERIFICATION_AZIHSM_DRIVER_FILES_TO_VERIFY -contains $filename))
+        {
+            $verify_result = verify_file_signature -FilePath "$filepath" `
+                                                   -ExpectedSubjectCn "$script:SIGNATURE_VERIFICATION_AZIHSM_DRIVER_EXPECTED_SUBJECT_CN"
+            if ($verify_result -ne $script:STATUS_SUCCESS)
+            {
+                Write-Error "Failed to verify the signature of driver file: `"$filepath`"."
+                return $script:STATUS_FAIL
+            }
         }
     }
 
@@ -1057,7 +1190,12 @@ function install_driver
     $path = (Resolve-Path "$Path").Path
     if ((verify_driver_files -Path "$path") -ne $script:STATUS_SUCCESS)
     {
-        $msg = "The path (`"$path`") does not contain all (or any) AziHSM KSP driver files."
+        $msg = "The path (`"$path`") does not contain all (or any) AziHSM driver files"
+        if (-not $script:SIGNATURE_VERIFICATION_DISABLED)
+        {
+            $msg = "$msg, or the contained files failed signature verification"
+        }
+        $msg = "${msg}."
         Write-Error "$msg"
         return $script:STATUS_FAIL
     }
@@ -1334,6 +1472,18 @@ function verify_ksp_file
         return $script:STATUS_FAIL
     }
 
+    # Check for a valid signature on the file.
+    if (-not $script:SIGNATURE_VERIFICATION_DISABLED)
+    {
+        $verify_result = verify_file_signature -FilePath "$Path" `
+                                               -ExpectedSubjectCn "$script:SIGNATURE_VERIFICATION_AZIHSM_KSP_EXPECTED_SUBJECT_CN"
+        if ($verify_result -ne $script:STATUS_SUCCESS)
+        {
+            Write-Error "Failed to verify the signature of KSP file: `"$Path`"."
+            return $script:STATUS_FAIL
+        }
+    }
+
     return $script:STATUS_SUCCESS
 }
 
@@ -1349,7 +1499,12 @@ function install_ksp
     $path = (Resolve-Path "$Path").Path
     if ((verify_ksp_file -Path "$path") -ne $script:STATUS_SUCCESS)
     {
-        $msg = "The path (`"$path`") does not point to a valid AziHSM KSP DLL file."
+        $msg = "The path (`"$path`") does not point to a valid AziHSM KSP DLL file"
+        if (-not $script:SIGNATURE_VERIFICATION_DISABLED)
+        {
+            $msg = "$msg, or the file failed signature verification"
+        }
+        $msg = "${msg}."
         Write-Error "$msg"
         return $script:STATUS_FAIL
     }
@@ -1464,6 +1619,18 @@ function verify_symcrypt_file
     if (-not (Test-Path -Path "$Path" -PathType "Leaf"))
     {
         return $script:STATUS_FAIL
+    }
+
+    # Check for a valid signature on the file.
+    if (-not $script:SIGNATURE_VERIFICATION_DISABLED)
+    {
+        $verify_result = verify_file_signature -FilePath "$Path" `
+                                               -ExpectedSubjectCn "$script:SIGNATURE_VERIFICATION_SYMCRYPT_EXPECTED_SUBJECT_CN"
+        if ($verify_result -ne $script:STATUS_SUCCESS)
+        {
+            Write-Error "Failed to verify the signature of SymCrypt file: `"$Path`"."
+            return $script:STATUS_FAIL
+        }
     }
 
     return $script:STATUS_SUCCESS
@@ -1606,7 +1773,12 @@ function main_symcrypt
     $path = $path_resolution.Path
     if ((verify_symcrypt_file -Path "$path") -ne $script:STATUS_SUCCESS)
     {
-        $msg = "The path (`"$path`") does not point to a valid SymCrypt DLL file."
+        $msg = "The path (`"$path`") does not point to a valid SymCrypt DLL file"
+        if (-not $script:SIGNATURE_VERIFICATION_DISABLED)
+        {
+            $msg = "$msg, or the file failed signature verification"
+        }
+        $msg = "${msg}."
         Write-Error "$msg"
         return $script:STATUS_FAIL
     }
@@ -1667,12 +1839,21 @@ function main
         [Parameter(Mandatory=$false)]
         [string]$KSPPath=$null,
         [Parameter(Mandatory=$false)]
-        [string]$SymCryptPath=$null
+        [string]$SymCryptPath=$null,
+        [Parameter(Mandatory=$false)]
+        [switch]$SkipSignatureVerification
     )
 
     if ($Help)
     {
         return show_help
+    }
+
+    # Disable signature verification, if requested:
+    if ($SkipSignatureVerification)
+    {
+        $script:SIGNATURE_VERIFICATION_DISABLED = $true
+        Write-Host "Signature verification will be skipped for all installed binaries."
     }
 
     # This script automatically detects the firmware version of the AziHSM
@@ -1917,6 +2098,19 @@ function main
         }
 
         Write-Host "Downloaded `"$($gdi_asset.name)`" executable to: `"$gdi_path`"."
+
+        # Verify the downloaded file is a valid `get_device_info` executable.
+        if ((verify_getdeviceinfo_file -Path "$gdi_path") -ne $script:STATUS_SUCCESS)
+        {
+            $msg = "The downloaded file at `"$gdi_path`" is not a valid `"$script:GETDEVICEINFO_FILE_NAME`" executable"
+            if (-not $script:SIGNATURE_VERIFICATION_DISABLED)
+            {
+                $msg = "$msg, or the file failed signature verification"
+            }
+            $msg = "${msg}."
+            Write-Error "$msg"
+            return $script:STATUS_FAIL
+        }
     }
 
     # Execute the `get_device_info` utility to retrieve device information.
