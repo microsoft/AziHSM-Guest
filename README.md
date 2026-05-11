@@ -27,13 +27,12 @@ Before you can start using AziHSM, you would need to deploy a VM with AziHSM ena
 
 ### Installing AziHSM Dependencies
 
-To utilize the AziHSM on your Azure VM, you'll need to install the necessary dependencies.
-Please see the [installation guide](./docs/Install.md) for more information (and for steps on how to uninstall).
+To utilize the AziHSM on your Azure VM, the necessary dependencies must be installed.
+Please see the [installation guide](./docs/Install.md) for more information.
 
 ### Running the Samples
 
-To run the samples, please see [instructions for running samples](./samples/cpp).
-
+To run the samples, please see the documentation within the [samples directory](./samples/).
 
 ## Questions & Feedback
 

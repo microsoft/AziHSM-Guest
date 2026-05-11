@@ -28,12 +28,7 @@ az group create --name myResourceGroup --location eastus2
 Create a VM with the `az vm create` command.
 
 The following example creates a VM named `myVM` and adds a user account named `azureuser`.
-For sizes, Azure Integrated HSM is supported by 8 vCores and above for the following SKUs:
-
-* [Dasv7](https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/general-purpose/dasv7-series)
-* [Dadsv7](https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/general-purpose/dadsv7-series)
-* [Easv7](https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/memory-optimized/easv7-series)
-* [Eadsv7](https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/memory-optimized/eadsv7-series)
+Azure Integrated HSM is supported only on specific VM SKUs; please see the [supported SKUs page](./SupportedSKUs) for more information.
 
 Once our team has contacted you and enabled the Azure Integrated HSM tag mentioned below for your subscription you can use it to create new VM deployments.
 The VMs must support TrustedLaunch and secure boot in order to support Azure Integrated HSM.

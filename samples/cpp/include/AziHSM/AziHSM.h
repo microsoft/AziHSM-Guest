@@ -14,14 +14,17 @@
 
 
 #pragma once
-#include <string>
+
+#include <stdint.h>
 
 // The name of the AziHSM Key Storage Provider.
 //
 // This should be passed into `NCryptOpenStorageProvider()` as the provider
 // name in order to open a handle to the AziHSM KSP.
+#ifndef _AZIHSM_KSP_NAME
 #define _AZIHSM_KSP_NAME L"Microsoft Azure Integrated HSM Key Storage Provider"
 const wchar_t* AZIHSM_KSP_NAME = _AZIHSM_KSP_NAME;
+#endif
 
 
 // ========================== Provider Properties =========================== //
@@ -37,17 +40,20 @@ const wchar_t* AZIHSM_KSP_NAME = _AZIHSM_KSP_NAME;
 //
 // The property's value is an unsigned 32-bit integer (4 bytes in length), and
 // is represented in little-endian ordering.
+#ifndef _AZIHSM_PROPERTY_MAX_KEY_COUNT_NAME
 #define _AZIHSM_PROPERTY_MAX_KEY_COUNT_NAME L"AZIHSM_DEVICE_MAX_KEY_COUNT_PROPERTY"
 const wchar_t* AZIHSM_PROPERTY_MAX_KEY_COUNT_NAME = _AZIHSM_PROPERTY_MAX_KEY_COUNT_NAME;
+#endif
 
 // The name of the property that holds maximum storage size, in Kilobytes (KB),
 // in which keys can be stored on the AziHSM device.
 //
 // The property's value is an unsigned 32-bit integer (4 bytes in length), and
 // is represented in little-endian ordering.
+#ifndef _AZIHSM_PROPERTY_MAX_STORAGE_SIZE_NAME
 #define _AZIHSM_PROPERTY_MAX_STORAGE_SIZE_NAME L"AZIHSM_DEVICE_MAX_STORAGE_SIZE_PROPERTY"
 const wchar_t* AZIHSM_PROPERTY_MAX_STORAGE_SIZE_NAME = _AZIHSM_PROPERTY_MAX_STORAGE_SIZE_NAME;
-
+#endif
 
 // ============================= Key Properties ============================= //
 // This section defines strings that represent the names of key-specific
@@ -62,8 +68,10 @@ const wchar_t* AZIHSM_PROPERTY_MAX_STORAGE_SIZE_NAME = _AZIHSM_PROPERTY_MAX_STOR
 // explicitly set this property, it should be done via `NCryptSetProperty()`,
 // *after* `NCryptImportKey()` is called, and *before* `NCryptFinalizeKey()` is
 // called.
+#ifndef _AZIHSM_KEY_PROPERTY_RSA_CRT_ENABLED
 #define _AZIHSM_KEY_PROPERTY_RSA_CRT_ENABLED L"RsaCrtEnabled"
 const wchar_t* AZIHSM_KEY_PROPERTY_RSA_CRT_ENABLED_NAME = _AZIHSM_KEY_PROPERTY_RSA_CRT_ENABLED;
+#endif
 
 // The value that is returned from `NCryptGetProperty()` for the `RsaCrtEnabled`
 // property for an RSA key, when it is CRT-enabled.
@@ -71,8 +79,10 @@ const wchar_t* AZIHSM_KEY_PROPERTY_RSA_CRT_ENABLED_NAME = _AZIHSM_KEY_PROPERTY_R
 // This value can also be used to enable CRT during RSA key import via the
 // `NCryptSetProperty()` function, *after* `NCryptImportKey()` is called, and
 // *before* `NCryptFinalizeKey()` is called.
+#ifndef _AZIHSM_KEY_PROPERTY_RSA_CRT_ENABLED_VALUE_ENABLED
 #define _AZIHSM_KEY_PROPERTY_RSA_CRT_ENABLED_VALUE_ENABLED 1
 const uint32_t AZIHSM_KEY_PROPERTY_RSA_CRT_ENABLED_VALUE_ENABLED = _AZIHSM_KEY_PROPERTY_RSA_CRT_ENABLED_VALUE_ENABLED;
+#endif
 
 // The value that is returned from `NCryptGetProperty()` for the `RsaCrtEnabled`
 // property for an RSA key, when it is CRT-disabled.
@@ -80,9 +90,10 @@ const uint32_t AZIHSM_KEY_PROPERTY_RSA_CRT_ENABLED_VALUE_ENABLED = _AZIHSM_KEY_P
 // This value can also be used to disable CRT during RSA key import via the
 // `NCryptSetProperty()` function, *after* `NCryptImportKey()` is called, and
 // *before* `NCryptFinalizeKey()` is called.
+#ifndef _AZIHSM_KEY_PROPERTY_RSA_CRT_ENABLED_VALUE_DISABLED
 #define _AZIHSM_KEY_PROPERTY_RSA_CRT_ENABLED_VALUE_DISABLED 0
 const uint32_t AZIHSM_KEY_PROPERTY_RSA_CRT_ENABLED_VALUE_DISABLED = _AZIHSM_KEY_PROPERTY_RSA_CRT_ENABLED_VALUE_DISABLED;
-
+#endif
 
 // ======================== Built-In Unwrapping Key ========================= //
 // This section defines values used to import key blobs into AziHSM, as well as
@@ -96,8 +107,10 @@ const uint32_t AZIHSM_KEY_PROPERTY_RSA_CRT_ENABLED_VALUE_DISABLED = _AZIHSM_KEY_
 // This can be passed into `NCryptOpenKey()` to open a handle to the key, which
 // can then be used in `NCryptExportKey()` to export the public key contents
 // and use it to encrypt a key blob before importing it.
+#ifndef _AZIHSM_BUILTIN_UNWRAP_KEY_NAME
 #define _AZIHSM_BUILTIN_UNWRAP_KEY_NAME L"AZIHSM_BUILTIN_UNWRAP_KEY"
 const wchar_t* AZIHSM_BUILTIN_UNWRAP_KEY_NAME = _AZIHSM_BUILTIN_UNWRAP_KEY_NAME;
+#endif
 
 // The name of the blob type used when importing a derived key after a Key
 // Derivation Function (KDF) operation.
@@ -106,70 +119,62 @@ const wchar_t* AZIHSM_BUILTIN_UNWRAP_KEY_NAME = _AZIHSM_BUILTIN_UNWRAP_KEY_NAME;
 // `NCryptImportKey()` differently than as described by the NCrypt API. In this
 // context, the `pbData` and `cbData` parameters into `NCryptImportKey()`
 // should contain an internal key handle, rather than the derived data itself.
+#ifndef _AZIHSM_DERIVED_KEY_IMPORT_BLOB_NAME
 #define _AZIHSM_DERIVED_KEY_IMPORT_BLOB_NAME L"AzIHsmDerivedKeyImportBlob"
 const wchar_t* AZIHSM_DERIVED_KEY_IMPORT_BLOB_NAME = _AZIHSM_DERIVED_KEY_IMPORT_BLOB_NAME;
+#endif
 
-typedef enum _AZIHSM_STATUS
-{
-    AZIHSM_SUCCESS = 0,
-    AZIHSM_FAILURE = 1,  // generic failure
-    AZIHSM_CLAIM_BUFFER_INVALID_FORMAT = 2,
-    AZIHSM_CLAIM_BUFFER_INVALID_LENGTH = 3,
-    AZIHSM_CLAIM_BUFFER_VERSION_UNSUPPORTED = 4,
-} AZIHSM_STATUS;
 
-typedef struct _AziHSMClaimHeader {
-    UINT32 Version;
-    UINT32 TotalLength;
-    UINT32 QuoteLength;
-    UINT32 CertificateLength;
-} AziHSMClaimHeader;
+// ================================ AES GCM ================================= //
+// The number of bits in an AES-GCM key supported by the AziHSM.
+#ifndef _AZIHSM_AES_GCM_KEY_LENGTH_BITS
+#define _AZIHSM_AES_GCM_KEY_LENGTH_BITS 256
+const uint32_t AZIHSM_AES_GCM_KEY_LENGTH_BITS = _AZIHSM_AES_GCM_KEY_LENGTH_BITS;
+#endif
 
-// Parse the claim buffer obtained from NCryptCreateClaim
-// Buffer format (all numbers are in little-endian):
-// - Header
-// - 4 bytes: UINT32, version, currently 1
-// - 4 bytes: UINT32, buffer total length, including header
-// - 4 bytes: UINT32, length of attestation report in bytes
-// - 4 bytes: UINT32, length of certificate in bytes
-// - payload
-// - N bytes: attestation report
-// - M bytes: certificate
-//
-// Outputs: the offsets and sizes of quote and certificate within the claim buffer
-inline AZIHSM_STATUS azihsm_parse_claim(
-    PBYTE bufferClaim,
-    DWORD bufferClaimSize,
-    DWORD* outBufferQuoteOffset,
-    DWORD* outBufferQuoteSize,
-    DWORD* outBufferCertificateOffset,
-    DWORD* outBufferCertificateSize) {
-    size_t headerSize = sizeof(AziHSMClaimHeader);
+// The number of bytes in an AES-GCM key supported by the AziHSM.
+#ifndef _AZIHSM_AES_GCM_KEY_LENGTH_BYTES
+#define _AZIHSM_AES_GCM_KEY_LENGTH_BYTES (_AZIHSM_AES_GCM_KEY_LENGTH_BITS / 8)
+const uint32_t AZIHSM_AES_GCM_KEY_LENGTH_BYTES = _AZIHSM_AES_GCM_KEY_LENGTH_BYTES;
+#endif
 
-    if (bufferClaimSize < headerSize)
-    {
-        return AZIHSM_CLAIM_BUFFER_INVALID_FORMAT;
-    }
+// The number of bytes in an AES-GCM IV (Initialization Vector) used by the
+// AziHSM.
+#ifndef _AZIHSM_AES_GCM_IV_LENGTH_BYTES
+#define _AZIHSM_AES_GCM_IV_LENGTH_BYTES 12
+const uint32_t AZIHSM_AES_GCM_IV_LENGTH_BYTES = _AZIHSM_AES_GCM_IV_LENGTH_BYTES;
+#endif
 
-    AziHSMClaimHeader header = *(AziHSMClaimHeader*)bufferClaim;
-    if (header.Version != 1)
-    {
-        return AZIHSM_CLAIM_BUFFER_VERSION_UNSUPPORTED;
-    }
+// The number of bytes in an AES-GCM authentication tag used by the AziHSM.
+#ifndef _AZIHSM_AES_GCM_TAG_LENGTH_BYTES
+#define _AZIHSM_AES_GCM_TAG_LENGTH_BYTES 16
+const uint32_t AZIHSM_AES_GCM_TAG_LENGTH_BYTES = _AZIHSM_AES_GCM_TAG_LENGTH_BYTES;
+#endif
 
-    // Verify lengths
-    if ((headerSize + header.QuoteLength + header.CertificateLength) != header.TotalLength ||
-        header.TotalLength != bufferClaimSize)
-    {
-        return AZIHSM_CLAIM_BUFFER_INVALID_LENGTH;
-    }
 
-    // Return offsets for quote and certificate
-    *outBufferQuoteOffset = headerSize;
-    *outBufferQuoteSize = header.QuoteLength;
+// ================================ AES XTS ================================= //
+// The number of bits in an AES-XTS key supported by the AziHSM.
+#ifndef _AZIHSM_AES_XTS_KEY_LENGTH_BITS
+#define _AZIHSM_AES_XTS_KEY_LENGTH_BITS 512
+const uint32_t AZIHSM_AES_XTS_KEY_LENGTH_BITS = _AZIHSM_AES_XTS_KEY_LENGTH_BITS;
+#endif
 
-    *outBufferCertificateOffset = headerSize + header.QuoteLength;
-    *outBufferCertificateSize = header.CertificateLength;
+// The number of bytes in an AES-XTS tweak value used by the AziHSM.
+#ifndef _AZIHSM_AES_XTS_TWEAK_LENGTH_BYTES
+#define _AZIHSM_AES_XTS_TWEAK_LENGTH_BYTES 16
+const uint32_t AZIHSM_AES_XTS_TWEAK_LENGTH_BYTES = _AZIHSM_AES_XTS_TWEAK_LENGTH_BYTES;
+#endif
 
-    return AZIHSM_SUCCESS;
-}
+// The number of bytes in an AES-XTS block used by the AziHSM.
+#ifndef _AZIHSM_AES_XTS_BLOCK_LENGTH_BYTES
+#define _AZIHSM_AES_XTS_BLOCK_LENGTH_BYTES 16
+const uint32_t AZIHSM_AES_XTS_BLOCK_LENGTH_BYTES = _AZIHSM_AES_XTS_BLOCK_LENGTH_BYTES;
+#endif
+
+// ================================= Claims ================================= //
+// The claim type that should be specified used in `NCryptCreateClaim`'s
+// `dwClaimType` parameter.
+#ifndef _AZIHSM_CLAIM_TYPE_KEY_ATTESTATION
+#define _AZIHSM_CLAIM_TYPE_KEY_ATTESTATION 0x00000000
+const uint32_t AZIHSM_CLAIM_TYPE_KEY_ATTESTATION = _AZIHSM_CLAIM_TYPE_KEY_ATTESTATION;
+#endif

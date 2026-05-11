@@ -12,29 +12,19 @@ If your Azure workloads heavily rely on cryptography and have performance intens
 
 ## Supported Operations
 
-The following cryptographic operations are supported by AziHSM:
+Please see the [supported algorithms page](./SupportedAlgorithms.md) for a list of the crypto algorithms supported by AziHSM.
 
-* **AES - Encrypt + Decrypt**
-    * AES-CBC 128
-    * AES-CBC 192
-    * AES-CBC 256
-* **RSA**
-    * **Decrypt + Sign**
-        * RSA 2048 (2k)
-        * RSA 3072 (3k)
-        * RSA 4096 (4k)
-    * **Unwrap**
-        * RSA 2048 (2k)
-* **ECC**
-    * **ECDSA - Sign**
-        * ECC P256
-        * ECC P384
-        * ECC P521
-    * **ECDH - Secret Exchange**
-        * ECC P256
-        * ECC P384
-        * ECC P521
-* **Key Derivation**
-    * KBKDF ("Key Based Key Derivation Function") - refers to the **SP800-108 HMAC in counter mode** KDF, as seen [here](https://learn.microsoft.com/en-us/windows/win32/api/bcrypt/nf-bcrypt-bcryptkeyderivation) in the NCrypt API documentation.
-    * HKDF ("HMAC-based Key Derivation Function") - as defined in [IETF RFC 5869](https://datatracker.ietf.org/doc/html/rfc5869), and referred to in NCrypt by the `BCRYPT_HKDF_ALGORITHM` string.
+## Supported VM SKUs
+
+Please see the [supported SKUs page](./SupportedSKUs.md) for information on the Azure VM SKUs that support AziHSM.
+
+## NCrypt API
+
+The AziHSM KSP (Key Storage Provider) on Windows is invoked via the [Windows NCrypt API](https://learn.microsoft.com/en-us/windows/win32/api/ncrypt/), just like other NCrypt providers like KeyGuard and LSASS.
+There are a few notable differences in the behavior of the AziHSM provider when calling it via NCrypt; please see [the NCrypt differences page](./NCryptDifferences.md) for more information.
+
+## Secure Key Release
+
+AziHSM supports securely releasing keys from AKV/mHSM into the AziHSM device.
+Please see the [AziHSM SKR page](./SecureKeyRelease.md) for more information.
 

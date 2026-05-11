@@ -6,7 +6,10 @@ Before you can run any of the samples in this repository, you'll need to ensure 
 * AziHSM **KSP** (Key Storage Provider)
 * [SymCrypt](https://github.com/microsoft/SymCrypt) - A dependency of the AziHSM KSP
 
-Please perform the following steps:
+On certain Azure VM images, these dependencies will already be installed and ready for use.
+You can check this by following the [installation verification steps below](#how-do-i-verify-the-installation).
+
+If your VM image does not have these dependencies pre-installed, please perform the following steps.
 
 1. Download the [`install-azihsm.ps1`](../scripts/install-azihsm.ps1) script from this repository onto your VM.
 2. Open PowerShell (v5.1+) with *admin privileges* on your VM and run the script.
@@ -57,19 +60,6 @@ Please perform the following steps:
 
 The script will extract the contents and install all binaries.
 
-**NOTE:** Pay attention to the information printed in the **Device Information Discovery** section of the script's output.
-This will tell you what driver and KSP versions are compatible with the AziHSM device connected to your VM.
-Normally, the script will automatically decide which versions to install, but it won't be able to do this if it cannot download files from GitHub.
-This means it is possible that the driver versions you manually downloaded are not compatible.
-You may see these warnings:
-
-```
-WARNING: The current AziHSM driver version ("X.X.XXX.X") is NOT compatible with the device firmware version ("X.Y-ZZZZZZZZ"). Compatible driver versions are between "X.X.XXX.X" and "X.X.XXX.X"
-WARNING: The current AziHSM KSP version ("X.X.XXX.X") is NOT compatible with the device firmware version ("X.Y-ZZZZZZZZ"). Compatible KSP versions are between "X.X.XXX.X" and "X.X.XXX.X"
-```
-
-If this is the case, please download compatible versions and repeat the steps above to complete the installation.
-
 </details>
 
 ## How do I verify the installation?
@@ -78,6 +68,9 @@ If the installation script completed successfully, no verification is required.
 However, if you would like to double-check, follow these steps.
 
 ### Verify AziHSM KSP
+
+<details>
+<summary>(Click to Expand)</summary>
 
 First, open PowerShell or File Explorer, and ensure the AziHSM KSP DLL is located in `C:\Windows\System32`:
 
@@ -118,7 +111,12 @@ regsvr32 /u C:\Windows\System32\azihsmksp.dll
 
 In GUI-enabled Windows systems, a dialog box should appear with a success or failure message.
 
+</details>
+
 ### Verify AziHSM Device Driver
+
+<details>
+<summary>(Click to Expand)</summary>
 
 In PowerShell, run the following [`pnputil`](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/pnputil) command:
 
@@ -144,7 +142,12 @@ Try following the installation guide again; watch for errors that appear when ru
 If you are still encountering issues, try following the official [Device and Driver Installation Troubleshooting Guide](https://learn.microsoft.com/en-us/windows-hardware/drivers/install/troubleshooting-device-and-driver-installations).
 If all else fails, please feel free to submit an issue to this GitHub repository.
 
+</details>
+
 ### Verify SymCrypt
+
+<details>
+<summary>(Click to Expand)</summary>
 
 In PowerShell or File Explorer, ensure the SymCrypt DLL is located in `C:\Windows\System32`:
 
@@ -152,10 +155,28 @@ In PowerShell or File Explorer, ensure the SymCrypt DLL is located in `C:\Window
 ls C:\Windows\System32\symcrypt.dll
 ```
 
+</details>
+
 ## How do I uninstall?
 
 To uninstall the AziHSM dependencies from your VM, perform the following steps:
 
 1. Download the [`uninstall-azihsm.ps1`](../scripts/uninstall-azihsm.ps1) script from this repository onto your VM.
 2. Execute the script.
+
+## What if I am getting rate limited by GitHub?
+
+<details>
+<summary>(Click to Expand)</summary>
+
+Depending on how many runs of the `install-azihsm.ps1` script you are performing from the same public IP address, [GitHub's rate limiting policy](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api) may begin to negatively affect the install process.
+This could occur, for example, in a situation where several installations are happening across VMs under the same public IP address.
+
+To avoid frequent GitHub API polls:
+
+* Rely on the existing AziHSM binaries pre-installed on certain Azure VM images, and *do not* run the install script.
+* Download the latest the AziHSM binaries a single time, then run `install-azihsm.ps1` by pointing it at the locally-downloaded files.
+    * (The script will make no GitHub API calls when processing local files.)
+
+</details>
 
