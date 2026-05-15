@@ -19,14 +19,15 @@ This Secure Key Release sample involves following Azure resources:
 
 The Microsoft Azure Attestation will aid attestation of AziHSM's import key, and produce a JSON Web Token so Azure Key Vault could release a key.
 
-> Install Azure CLI  
-> https://learn.microsoft.com/en-us/cli/azure/?view=azure-cli-latest
+All commands in this article should be performed using Azure CLI. You can either open a cloud shell on portal.azure.com, or [install Azure CLI](https://learn.microsoft.com/en-us/cli/azure/?view=azure-cli-latest).
+
+Next, create MAA endpoint resource:
 
 ```
 az attestation create --name <your MAA name> --resource-group <your resource group> --location <pick a region like eastus>
 ```
 
-Note the Attest URI of the created Attestatoin provider.
+Once created, obtain the Attest URI of the Attestation provider.
 
 #### Create Azure Key Vault
 
@@ -37,18 +38,27 @@ First, create Azure Key Vault with Premium SKU, which enables HSM-protected keys
 az keyvault create --name <your resource name> --resource-group <your resource group> --enable-rbac-authorization true --sku premium
 ```
 
-> Setup access before proceeding  
+**Setup access to AKV**
+
+AKV uses role-based access control (RBAC), by default your account won't have any role.
+
 > https://learn.microsoft.com/en-us/azure/key-vault/general/rbac-guide?tabs=azure-cli  
-> You should have role that allows you to create keys on this Azure Key Vault  
-> For the rest of this sample, assuming you have role "Key Vault Crypto Officer"  
-> Example: `az role assignment create --role "Key Vault Crypto Officer" --assignee <xxx@mail.com> --scope /subscriptions/<subscriptionid>/resourcegroups/<resource-group-name>/providers/Microsoft.KeyVault/vaults/<key-vault-name>`
+
+You should have role that allows you to create keys on this Azure Key Vault  
+For the rest of this sample, use role "Key Vault Crypto Officer". You should set it up using:
+
+```
+az role assignment create --role "Key Vault Crypto Officer" --assignee <your account@mail.com> --scope /subscriptions/<subscriptionid>/resourcegroups/<resource-group-name>/providers/Microsoft.KeyVault/vaults/<key-vault-name>
+```
 
 Next, for this sample we will create one RSA 2k key in Azure Key Vault.
 ```
 az keyvault key create --exportable true --vault-name <your akv name> --kty RSA-HSM --size 2048 --name <key name> --policy skr-policy.json
 ```
 
-Example content of `skr-policy.json`
+You will need to create the `skr-policy.json`  
+And it should have following content (replace `authority` with "Attest URI" of the created MAA endpoint)
+
 > For more information, see [Secure Key Release feature with AKV ](https://learn.microsoft.com/en-us/azure/confidential-computing/concept-skr-attestation)
 
 ```json
@@ -76,7 +86,7 @@ Example content of `skr-policy.json`
 }
 ```
 
-Obtain the Key Identifier of this key, like  
+Once the key is created, obtain its Key Identifier, like  
 `https://<AKV name>.vault.azure.net/keys/<key name>/<version>`
 
 #### Create VM
@@ -85,18 +95,28 @@ Please follow [HowToDeploy.md](../../docs/HowToDeploy.md)
 
 **Setup access to Azure Key Vault**
 
-After creating the VM, assign proper role to VM to allow it to access the created Azure Key Vault.  
-There are multiple approaches to access control. See https://learn.microsoft.com/en-us/azure/role-based-access-control/role-assignments-portal  
+To access the AKV, the VM needs proper role, just like your dev account.  
+There are multiple approaches to access control. See https://learn.microsoft.com/en-us/azure/role-based-access-control/role-assignments-portal
 
-In this example let's assign role "Key Vault Crypto Officer" from the Azure Key Vault to your VM.
+In this sample let's also assign role "Key Vault Crypto Officer" to your VM.
 
 ```powershell
-az role assignment create --role "Key Vault Crypto Officer" --assignee <VM Object ID> --scope /subscriptions/<subscriptionid>/resourcegroups/<resource-group-name>/providers/Microsoft.KeyVault/vaults/<key-vault-name>
+az role assignment create --role "Key Vault Crypto Officer" --assignee <VM Object (principal) ID> --scope /subscriptions/<subscriptionid>/resourcegroups/<resource-group-name>/providers/Microsoft.KeyVault/vaults/<key-vault-name>
 ```
+
+> You can find the VM Object (principal) ID on Azure Portal.  
+> Go to VM page, select tab "Security" > "Identity" > "Object (principal) ID"  
+>
+> Or use Azure CLI  
+> `az vm show --name <VM Name> --resource-group <VM Resource Group> --query identity.principalId`
 
 ### Setup software dependency on VM
 
-If setup correctly, the VM should have AziHSM related drivers and dependencies (NCrypt, SymCrypt, etc) pre-installed. To verify this, you can obtain and run [get_device_info.exe](https://github.com/microsoft/AziHSM-Guest/releases/tag/get_device_info%2Fv0.1.0)
+**AziHSM driver**
+
+This step is optional as the VM should be created with proper driver and dependencies (NCrypt, SymCrypt, etc).
+
+To verify this, you can obtain and run [get_device_info.exe](https://github.com/microsoft/AziHSM-Guest/releases/tag/get_device_info%2Fv0.1.0)
 
 You should see output similar to this
 ```
@@ -108,13 +128,18 @@ AziHSM HW ver: "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
 ====Done Logging AziHSM device information
 ```
 
-Additionally, We need to setup following software dependencies:
+**Sample dependency**
+
+To run this sample, we need:
 1. Install Visual Studio 2019 or newer
 2. Install vcpkg for Visual Studio: https://learn.microsoft.com/en-us/vcpkg/get_started/get-started-msbuild?pivots=shell-powershell
-3. Install vcpkg dependencies: `vcpkg install`.
-    1. This project uses vcpkg manifest mode, see [vcpkg.json](./vcpkg.json)
+3. Install vcpkg dependencies:
+    1. `cd SECURE-KEY-RELEASE\`
+    2. `vcpkg install`
 
-## How to run
+> This project uses vcpkg in manifest mode, see [vcpkg.json](./vcpkg.json)
+
+## How to run sample
 
 > See top-level [README.md](../README.md) for prerequisites.
 
@@ -123,9 +148,10 @@ The sample takes 3 command line arguments:
 Usage: SECURE-KEY-RELEASE.exe <MAA_ENDPOINT> <KEY_URL> [CLIENT_ID]
 ```
 
-`<MAA_ENDPOINT>` and `<KEY_URL>` are URLs from Azure resources we created eariler.  
-`[CLIENT_ID]` is an optional string, representing the Client ID of an Azure Identity, this identity should have role to assign keys in the created Azure Key Vault.
-> If you followed this guide then you don't need to give a client id, as this VM has proper access.
+`<MAA_ENDPOINT>` and `<KEY_URL>` are URLs from Azure resources we created earlier.  
+
+`[CLIENT_ID]` is an optional string, representing the Client ID of an Azure Identity, that identity should have proper AKV role. Use this if there are multiple Azure identities attached to a VM.
+> If you created the VM following this guide then you don't need to give a client id.
 
 Output of the sample code
 ```
