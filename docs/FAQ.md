@@ -10,7 +10,7 @@ You may remove the AziHSM dependencies from your VM by following the steps in ou
 
 ## Q: Where can I learn how to use the AziHSM?
 
-Please see the [sample applications](./samples) in this repository.
+Please see the [sample applications](../samples) in this repository.
 These provide examples of how the AziHSM can be used for various purposes.
 
 ## Q: How do I collect AziHSM debug logs?
