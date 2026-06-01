@@ -91,7 +91,7 @@ Once the key is created, obtain its Key Identifier, like
 
 #### Create VM
 
-Please follow [HowToDeploy.md](../../docs/HowToDeploy.md)
+Please follow [HowToDeploy.md](../../../docs/HowToDeploy.md)
 
 **Setup access to Azure Key Vault**
 
