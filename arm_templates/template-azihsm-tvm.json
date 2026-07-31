@@ -129,6 +129,18 @@
         "offer": "windowsserver",
         "sku": "2025-datacenter-smalldisk-g2",
         "version": "latest"
+      },
+      "Ubuntu 2204": {
+        "publisher": "Canonical",
+        "offer": "0001-com-ubuntu-server-jammy",
+        "sku": "22_04-lts-gen2",
+        "version": "latest"
+      },
+      "Azure Linux 3 Gen 2": {
+        "publisher": "MicrosoftCBLMariner",
+        "offer": "azure-linux-3",
+        "sku": "azure-linux-3-gen2",
+        "version": "latest"
       }
     },
     "imageReference": "[variables('imageList')[parameters('osImageName')]]",
@@ -142,6 +154,18 @@
     "subnetName": "[concat(parameters('vmName'), '-sub')]",
     "subnetRefNew": "[concat(variables('virtualNetworkId'), '/subnets/', variables('subnetName'))]",
     "subnetRef": "[if(equals(parameters('vnetNewOrExisting'), 'new'), variables('subnetRefNew'), variables('subnetRefExisting'))]",
+    "isWindows": "[contains(parameters('osImageName'), 'Windows')]",
+    "linuxConfiguration": {
+      "disablePasswordAuthentication": "true",
+      "ssh": {
+        "publicKeys": [
+          {
+            "keyData": "[parameters('adminPasswordOrKey')]",
+            "path": "[concat('/home/', parameters('adminUsername'), '/.ssh/authorized_keys')]"
+          }
+        ]
+      }
+    },
     "windowsConfiguration": {
       "enableAutomaticUpdates": "true",
       "provisionVmAgent": "true"
@@ -260,7 +284,8 @@
           "computerName": "[parameters('vmName')]",
           "adminUsername": "[parameters('adminUsername')]",
           "adminPassword": "[parameters('adminPasswordOrKey')]",
-          "windowsConfiguration": "[variables('windowsConfiguration')]"
+          "linuxConfiguration": "[if(equals(parameters('authenticationType'), 'password'), json('null'), variables('linuxConfiguration'))]",
+          "windowsConfiguration": "[if(variables('isWindows'), variables('windowsConfiguration'), json('null'))]"
         },
         "securityProfile": {
           "uefiSettings": {

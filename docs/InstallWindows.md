@@ -1,4 +1,4 @@
-# Installing AziHSM Dependencies
+# Installing AziHSM Dependencies on Windows VMs
 
 Before you can run any of the samples in this repository, you'll need to ensure that the following dependencies are installed onto your machine:
 

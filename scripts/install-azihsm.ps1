@@ -784,7 +784,7 @@ function get_azihsm_device_info
 
     # Invoke the `get_device_info` utility and capture its output.
     Write-Host "Executing `"$GetDeviceInfoPath`" to retrieve connected AziHSM device information."
-    $result = run_cmd -CmdName "$GetDeviceInfoPath"
+    $result = run_cmd -CmdName "$GetDeviceInfoPath" -CmdArgs "--json"
     $out = $result.Output
 
     # If the utility didn't output anything, then it was unable to communicate
@@ -815,49 +815,37 @@ function get_azihsm_device_info
         PCIInfo = $null
     }
 
-    # Read the output line-by-line:
-    $lines = $out -split "`n"
-    $fw_version = $null
-    foreach ($line in $lines)
+    # Parse JSON output and extract the first device entry.
+    $parsed_output = $null
+    try
     {
-        # Sanitize each line of output
-        $line = $line.Trim()
-        $line = $line.Replace("`t", " ")
-
-        # Skip lines that don't have key-value pair syntax
-        if (-not ($line -match "[a-zA-Z0-9_\-\s]+:"))
-        {
-            continue
-        }
-
-        # Split the line into its key and value components
-        $pieces = $line -split ":", 2
-        $key = $pieces[0].Trim().ToLower()
-        $value = $pieces[1].Trim().Trim('"')
-
-        # Look for various keys and store their values:
-        if ($key -like "*driver version*")
-        {
-            $device_info.DriverVersion = $value
-            Write-Host "Discovered AziHSM device driver version: $value"
-        }
-        elseif ($key -like "*fw ver*")
-        {
-            $fw_version = sanitize_fw_version -FwVersion $value
-            $device_info.FirmwareVersion = $fw_version
-            Write-Host "Discovered AziHSM device firmware version: $fw_version"
-        }
-        elseif ($key -like "*hw ver*")
-        {
-            $device_info.HardwareVersion = $value
-            Write-Host "Discovered AziHSM device hardware version: $value"
-        }
-        elseif ($key -like "*pci info*")
-        {
-            $device_info.PCIInfo = $value
-            Write-Host "Discovered AziHSM device PCI info: $value"
-        }
+        $parsed_output = $out | ConvertFrom-Json -ErrorAction Stop
     }
+    catch
+    {
+        $msg = "Failed to parse JSON output from `"$GetDeviceInfoPath`"."
+        $msg = "$msg Received output:`n$out"
+        Write-Error "$msg"
+        return $null
+    }
+
+    $devices = @($parsed_output.device_info)
+    if ($devices.Length -eq 0)
+    {
+        Write-Warning "No AziHSM devices found in JSON output from `"$GetDeviceInfoPath`"."
+        return $null
+    }
+
+    $device = $devices[0]
+    $device_info.DriverVersion = [string]$device.driver_ver
+    $device_info.FirmwareVersion = sanitize_fw_version -FwVersion ([string]$device.firmware_ver)
+    $device_info.HardwareVersion = [string]$device.hardware_ver
+    $device_info.PCIInfo = [string]$device.pci_info
+
+    Write-Host "Discovered AziHSM device driver version: $($device_info.DriverVersion)"
+    Write-Host "Discovered AziHSM device firmware version: $($device_info.FirmwareVersion)"
+    Write-Host "Discovered AziHSM device hardware version: $($device_info.HardwareVersion)"
+    Write-Host "Discovered AziHSM device PCI info: $($device_info.PCIInfo)"
 
     # Make sure all fields in custom object were filled.
     if (-not $device_info.DriverVersion -or
