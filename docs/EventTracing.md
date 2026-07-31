@@ -16,8 +16,8 @@ To begin a trace session, execute the [`trace-collect-start.ps1`](../scripts/tra
 We recommend creating a different trace session for each component:
 
 ```powershell
-.\trace-collect-start.ps1 -SessionName "AZIHSM_DRIVER_TRACE_1" -ProviderGUIDs "6f3170cd-d4f0-4e06-8e07-5bcf2f20771c" -OutputPath "$env:USERPROFILE\AZIHSM_DRIVER_TRACE_1.etl"
-.\trace-collect-start.ps1 -SessionName "AZIHSM_KSP_TRACE_1" -ProviderGUIDs "6f3b7e7a-7f98-4fb5-a0ce-e994136df3e2" -OutputPath "$env:USERPROFILE\AZIHSM_KSP_TRACE_1.etl"
+.\trace-collect-start.ps1 -SessionName "AZIHSM_DRIVER_TRACE_1" -ProviderGUIDs "6f3170cd-d4f0-4e06-8e07-5bcf2f20771c" -OutputPath "$env:USERPROFILE\AZIHSM_DRIVER_TRACE_1.etl" -Level "INFO"
+.\trace-collect-start.ps1 -SessionName "AZIHSM_KSP_TRACE_1" -ProviderGUIDs "6f3b7e7a-7f98-4fb5-a0ce-e994136df3e2" -OutputPath "$env:USERPROFILE\AZIHSM_KSP_TRACE_1.etl" -Level "INFO"
 ```
 
 Upon completion of the script, the output `.etl` file should be created.
@@ -36,6 +36,21 @@ $env:AZIHSMKSP_LOG_LEVEL = "DEBUG"
 # Set back to default
 $env:AZIHSMKSP_LOG_LEVEL = $null
 $env:AZIHSMKSP_LOG_LEVEL = "INFO"
+```
+
+Additionally, you can filter logs at the script level by providing the `-Level` command-line argument:
+
+```powershell
+# Capture only ERROR messages
+.\trace-collect-start.ps1 -Level "ERROR # ..."
+# Capture WARN, ERROR messages
+.\trace-collect-start.ps1 -Level "WARN # ..."
+# Capture INFO, WARN, ERROR messages
+.\trace-collect-start.ps1 -Level "INFO # ..."
+# Capture DEBUG, INFO, WARN, ERROR messages
+.\trace-collect-start.ps1 -Level "DEBUG # ..."
+# Capture TRACE, DEBUG, INFO, WARN, ERROR messages
+.\trace-collect-start.ps1 -Level "TRACE # ..."
 ```
 
 ## Step 2 - Reproduce the Issue
