@@ -20,7 +20,7 @@ You may install the AziHSM dependencies onto your VM by following the steps in o
 You may remove the AziHSM dependencies from your VM by following the steps in our install guides:
 
 * [Windows Install](./InstallWindows.md)
-* [Linux Install](./InstallLinux.md)
+* Linux support is under active development.
 
 ## Q: Where can I learn how to use the AziHSM?
 

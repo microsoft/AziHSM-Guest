@@ -155,7 +155,7 @@
     "subnetRefNew": "[concat(variables('virtualNetworkId'), '/subnets/', variables('subnetName'))]",
     "subnetRef": "[if(equals(parameters('vnetNewOrExisting'), 'new'), variables('subnetRefNew'), variables('subnetRefExisting'))]",
     "isWindows": "[contains(parameters('osImageName'), 'Windows')]",
-    "linuxConfiguration": {
+    "linuxConfigurationSsh": {
       "disablePasswordAuthentication": "true",
       "ssh": {
         "publicKeys": [
@@ -166,6 +166,10 @@
         ]
       }
     },
+    "linuxConfigurationPassword": {
+      "disablePasswordAuthentication": "false"
+    },
+    "linuxConfiguration": "[if(equals(parameters('authenticationType'), 'password'), variables('linuxConfigurationPassword'), variables('linuxConfigurationSsh'))]",
     "windowsConfiguration": {
       "enableAutomaticUpdates": "true",
       "provisionVmAgent": "true"
@@ -284,7 +288,7 @@
           "computerName": "[parameters('vmName')]",
           "adminUsername": "[parameters('adminUsername')]",
           "adminPassword": "[parameters('adminPasswordOrKey')]",
-          "linuxConfiguration": "[if(equals(parameters('authenticationType'), 'password'), json('null'), variables('linuxConfiguration'))]",
+          "linuxConfiguration": "[if(variables('isWindows'), json('null'), variables('linuxConfiguration'))]",
           "windowsConfiguration": "[if(variables('isWindows'), variables('windowsConfiguration'), json('null'))]"
         },
         "securityProfile": {
