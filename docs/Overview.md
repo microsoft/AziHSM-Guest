@@ -16,3 +16,14 @@ This security guarantee, plus the performance benefits of running cryptographic 
 
 Please take a look at the [Frequently Asked Questions](./FAQ.md) for answers to common questions.
 
+## Technical Documents
+
+To learn how to import your keys into AziHSM, see these pages:
+
+* [Secure Key Release](./SecureKeyRelease.md) - For importing a key you have stored in AKV/mHSM.
+* [Key Import](./KeyImport.md) - For importing a key you have stored elsewhere, or locally on your VM.
+
+To learn how performing a basic cryptographic operation with AziHSM works, please see these page(s):
+
+* [Cryptographic Operations with AziHSM](./CryptoOperations.md)
+

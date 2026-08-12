@@ -591,15 +591,15 @@ function query_github_getdeviceinfo_files
                                                     -ReleaseTag "$tag"
         foreach ($file in $release_files)
         {
-            # If the file name contains "get_device_info", we'll include it in the list
-            # of returned files.
+            # If the file name contains "get_device_info", we'll include it in
+            # the list of returned files.
             $file_name_lower = $file.name.ToLower()
-            if ($file_name_lower -like "*get_device_info*")
+            if ($file_name_lower -like "*$script:GETDEVICEINFO_FILE_NAME*")
             {
                 $gdi_files += @($file)
 
                 # While we're at it, we'll parse the version number out of this
-                # exsecutable and store it as an extra field in this object.
+                # executable and store it as an extra field in this object.
                 if ($file_name_lower -match "(?<!\w)\d+(?:\.\d+)+(?!\w)")
                 {
                     $version_str = $matches[0]

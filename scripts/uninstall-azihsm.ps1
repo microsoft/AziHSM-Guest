@@ -260,8 +260,6 @@ function show_help
     Write-Host "    (OPTIONAL) Skips the removal of the AziHSM driver."
     Write-Host "-SkipKSP"
     Write-Host "    (OPTIONAL) Skips the removal of the AziHSM KSP DLL."
-    Write-Host "-SkipSymCrypt"
-    Write-Host "    (OPTIONAL) Skips the removal of the SymCrypt DLL."
 
     return $script:STATUS_SUCCESS
 }
@@ -276,9 +274,7 @@ function main
         [Parameter(Mandatory=$false)]
         [switch]$SkipDriver,
         [Parameter(Mandatory=$false)]
-        [switch]$SkipKSP,
-        [Parameter(Mandatory=$false)]
-        [switch]$SkipSymCrypt
+        [switch]$SkipKSP
     )
 
     if ($Help)
