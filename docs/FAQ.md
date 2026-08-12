@@ -30,6 +30,12 @@ These provide examples of how the AziHSM can be used for various purposes.
 The AziHSM KSP (Key Storage Provider) on Windows is invoked via the [Windows NCrypt API](https://learn.microsoft.com/en-us/windows/win32/api/ncrypt/), just like other NCrypt providers like KeyGuard and LSASS.
 There are a few notable differences in the behavior of the AziHSM provider when calling it via NCrypt; please see [the NCrypt differences page](./NCryptDifferences.md) for more information.
 
+## Q: Can I import and use my keys that I have locally (on my VM)?
+
+Yes!
+Please see the [Key Import](./KeyImport.md) page how you can import keys that you have stored on your VM.
+(If you have keys stored on AKV/mHSM, please see the [Secure Key Release](./SecureKeyRelease.md) page.)
+
 ## Q: Can I import and use my keys from AKV (Azure Key Vault) / mHSM (Managed Hardware Security Module)?
 
 Yes!

@@ -1,42 +1,45 @@
 # AziHSM Guest
 
-Welcome!
-
-Azure Integrated HSM is now available to use in preview on the AMD v7 preview platform with support for our general purpose Dasv7-series, Dadsv7-series, Easv7-series and Eadsv7-series for 8 vCores Trusted Launch VMs and above. The Azure Integrated HSM preview will initially have Windows support only.
-Please sign up for the preview using: https://aka.ms/AMDv7_PublicPreview_Signup and we will enable your subscription to deploy.
- 
-Please see the AziHSM overview page to learn more about AziHSM.
- 
-This repository houses sample programs, documentation, and other resources to assist with utilizing the **Azure Integrated Hardware Security Module** (**AziHSM**).
-This also houses official releases of the AziHSM binaries, such as the device driver and the KSP (Key Storage Provider) library.
-Specifically, you'll find:
+Welcome to the repository for the **Azure Integrated HSM** (**AziHSM**) guest stack.
+Here, you'll find:
 
 * [`arm_templates/`](./arm_templates/) - ARM ([Azure Resource Manager](https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/overview)) templates to use when deploying an AziHSM-enabled VM.
 * [`azure_sdk/`](./azure_sdk/) - Sample code that demonstrates how to deploy an AziHSM-enabled VM with the Azure SDK.
-* [`docs/`](./docs/) - Documentation on the AziHSM.
-* [`samples/`](./samples/) - Small command-line applications that demonstrate proper usage of the AziHSM.
-* [`scripts/`](./scripts/) - Helpful shell scripts for installing and working with the AziHSM.
+* [`docs/`](./docs/) - Documentation on AziHSM.
+* [`samples/`](./samples/) - Small sample applications that demonstrate usage of AziHSM.
+* [`scripts/`](./scripts/) - Helpful shell scripts for installing and working with AziHSM.
 
-Please see the [AziHSM overview page](./docs/Overview.md) to learn more about AziHSM.
+Azure Integrated HSM (AziHSM) is generally available on Windows.
+Linux availability is under active development.
+See the [Supported SKUs](docs/SupportedSKUs.md) page for more information on availability across the various Azure VM SKUs.
+
+## What is AziHSM?
+
+Please see the [Overview](docs/Overview.md) page to learn more about Azure Integrated HSM.
 
 ## Getting Started
 
 ### Deploying a VM with AziHSM Enabled
 
-Before you can start using AziHSM, you would need to deploy a VM with AziHSM enabled in Azure. Please see the [how to deploy guide](./docs/HowToDeploy.md) to learn how to deploy an AziHSM-enabled VM.
+Before you can start using AziHSM, you first need to deploy a VM with AziHSM enabled in Azure.
+Please see the [How To Deploy](./docs/HowToDeploy.md) guide to learn how to deploy an AziHSM-enabled VM.
 
 ### Installing AziHSM Dependencies
 
 To utilize the AziHSM on your Azure VM, the necessary dependencies must be installed.
-Please see the [installation guide](./docs/Install.md) for more information.
+Please see these installation guides for more information:
+
+* [Windows Install](./docs/InstallWindows.md)
+* [Linux Install](./docs/InstallLinux.md)
 
 ### Running the Samples
 
-To run the samples, please see the documentation within the [samples directory](./samples/).
+To better understand how to use AziHSM in your applications, this repository hosts sample applications for demonstration.
+Please see the documentation within the [samples directory](./samples/).
 
 ## Questions & Feedback
 
-Please take a look at our [frequently asked questions](./docs/FAQ.md) page.
+Please take a look at our [Frequently Asked Questions](./docs/FAQ.md) page.
 
 If you have any other questions, concerns, or other feedback, please don't hesitate to reach out!
 We kindly ask that you submit an issue on this repository; we will get back to you as soon as we are able.
