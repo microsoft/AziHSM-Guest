@@ -12,6 +12,11 @@ You can check this by following the [installation verification steps below](#how
 If your VM image does not have these dependencies pre-installed, please perform the following steps.
 
 1. Download the [`install-azihsm.ps1`](../scripts/install-azihsm.ps1) script from this repository onto your VM.
+
+    ```powershell
+    curl.exe --fail --location --output install-azihsm.ps1 https://raw.githubusercontent.com/microsoft/AziHSM-Guest/main/scripts/install-azihsm.ps1
+    ```
+
 2. Open PowerShell (v5.1+) with *admin privileges* on your VM and run the script.
 
 The script will automatically download compatible AziHSM driver, AziHSM KSP, and SymCrypt binaries and install them.

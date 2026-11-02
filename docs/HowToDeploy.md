@@ -35,22 +35,26 @@ The VMs must support TrustedLaunch and secure boot in order to support Azure Int
 
 ```powershell
 az vm create `
-    --resource-group myResourceGroup `
-    --name myVM `
-    --size Standard_D8as_v7 `
-    --admin-username azureuser `
-    --admin-password <password> `
+    --resource-group "myResourceGroup" `
+    --name "myVM" `
+    --size "Standard_D8as_v7" `
+    --admin-username "azureuser" `
+    --admin-password "<password>" `
     --enable-vtpm true `
     --image "MicrosoftWindowsServer:WindowsServer:2025-datacenter-smalldisk-g2:latest" `
-    --public-ip-sku Standard `
-    --security-type TrustedLaunch `
-    --location eastus2 `
+    --public-ip-sku "Standard" `
+    --security-type "TrustedLaunch" `
+    --location "eastus2" `
     --enable-secure-boot true `
     --tags platformsettings.host_environment.AzureIntegratedHSM=True
 ```
 
 It takes a few minutes to create the VM and supporting resources.
 Once created user should be able to see the tag applied in portal in the tag section.
+
+#### Need a Different Image?
+
+Please see the [supported images page](./SupportedImages.md) for more information on the OS images supported by AziHSM.
 
 ### Option 2 - ARM Templates
 

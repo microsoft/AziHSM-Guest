@@ -1,0 +1,12 @@
+# Copyright (C) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License.
+
+[package]
+name = "rsa-encrypt-decrypt"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "KMPP × AziHSM sample: RSA-OAEP encrypt/decrypt"
+
+[dependencies]
+kmpp-samples-common = { path = "../common" }

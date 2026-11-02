@@ -1,0 +1,46 @@
+<!-- Copyright (c) Microsoft Corporation. All rights reserved. -->
+<!-- Licensed under the MIT License. -->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>AziHsm.Samples.SecureKeyRelease</RootNamespace>
+    <AssemblyName>SECURE-KEY-RELEASE</AssemblyName>
+    <GuestAttestationArchitecture Condition="'$(RuntimeIdentifier)' == 'win-x64'">x64</GuestAttestationArchitecture>
+    <GuestAttestationArchitecture Condition="'$(RuntimeIdentifier)' == 'win-arm64'">arm64</GuestAttestationArchitecture>
+    <GuestAttestationLibraryPath>$(PkgMicrosoft_Azure_Security_GuestAttestation)\build\native\lib\$(GuestAttestationArchitecture)\AttestationClientLib.dll</GuestAttestationLibraryPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AziHsm.Samples.Common\AziHsm.Samples.Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Azure Key Vault key release, authenticated with the VM's managed identity. -->
+    <PackageReference Include="Azure.Identity" Version="1.13.2" />
+    <PackageReference Include="Azure.Security.KeyVault.Keys" Version="4.7.0" />
+
+    <!--
+      The Azure Guest Attestation Library. This is a native package, so the
+      runtime DLL has to be copied to the output directory explicitly.
+    -->
+    <PackageReference Include="Microsoft.Azure.Security.GuestAttestation"
+                      Version="1.1.4"
+                      GeneratePathProperty="true"
+                      ExcludeAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="$(GuestAttestationLibraryPath)"
+          Condition="Exists('$(GuestAttestationLibraryPath)')"
+          CopyToOutputDirectory="PreserveNewest"
+          Visible="false" />
+  </ItemGroup>
+
+  <Target Name="WarnIfGuestAttestationLibraryIsUnavailable"
+          BeforeTargets="Publish"
+          Condition="!Exists('$(GuestAttestationLibraryPath)')">
+    <Warning Text="The Guest Attestation native library is unavailable for $(RuntimeIdentifier). SECURE-KEY-RELEASE will be published without it and cannot run until the NuGet package provides this runtime asset." />
+  </Target>
+
+</Project>

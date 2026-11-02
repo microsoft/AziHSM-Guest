@@ -1,10 +1,10 @@
 # AziHSM Key Unwrap & Import
 
-However, AziHSM also supports importing keys directly from user-space in a VM.
+AziHSM also supports importing keys directly from user-space in a VM.
 This document describes the process of importing a local key into AziHSM.
 [**Secure Key Release**](./SecureKeyRelease.md) (**SKR**) can alternatively be used to import keys into AziHSM from Azure key storage solutions, such as AKV/mHSM.
 
-To see a sample application that implements this process, please see the [AziHSM sample applications](https://github.com/microsoft/AziHSM-Guest).
+To see a sample application that implements this process, please see the [RSA-IMPORT-ENCRYPT-DECRYPT Sample Application](../samples/cpp/RSA-IMPORT-ENCRYPT-DECRYPT/README.md).
 
 ## Step 1 - Retrieving the AziHSM Unwrapping Key
 
@@ -19,7 +19,8 @@ The guest application first opens a handle to the built-in unwrapping key, and t
 ## Step 2 - Wrapping Your Key
 
 Once the unwrapping key's public key half is retrieved, the guest application uses this to encrypt the user's key and prepare a **wrapped key blob**.
-The encryption operations in this step are performed *on the VM* by an existing encryption APIs (such as BCrypt or OpenSSL).
+The key is then wrapped into a PKCS#11 blob, using the public key.
+The encryption operations used to wrap the key are performed *on the VM* by an existing encryption APIs (such as BCrypt or OpenSSL).
 
 The resulting **wrapped key blob** is then ready to be sent to the AziHSM device.
 

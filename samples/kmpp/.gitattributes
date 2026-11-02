@@ -1,0 +1,8 @@
+# Shell scripts must keep LF endings so they run on Linux (the samples' target).
+*.sh text eol=lf
+
+# Normalize the rest of the crate's text files to LF as well.
+*.rs   text eol=lf
+*.toml text eol=lf
+*.lock text eol=lf
+*.md   text eol=lf

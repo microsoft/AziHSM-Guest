@@ -1,0 +1,147 @@
+# Samples
+The samples in this directory demonstrate how to utilize AziHSM in your application. They are written in C#, and target .NET 8.
+
+> The same scenarios are also available in C++. See [../cpp/README.md](../cpp/README.md).
+
+| Sample | Scenario |
+|---|---|
+| [QUERY-PROPERTIES](./QUERY-PROPERTIES/README.md) | Read the device's storage and key count limits |
+| [AES-GCM-ENCRYPT-DECRYPT](./AES-GCM-ENCRYPT-DECRYPT/README.md) | Generate an AES-GCM key, then encrypt and decrypt with it |
+| [AES-XTS-ENCRYPT-DECRYPT](./AES-XTS-ENCRYPT-DECRYPT/README.md) | Generate an AES-XTS key, then encrypt and decrypt with it |
+| [RSA-IMPORT-ENCRYPT-DECRYPT](./RSA-IMPORT-ENCRYPT-DECRYPT/README.md) | Import an RSA key as a wrapped blob, then encrypt and decrypt with it |
+| [ECDH-KDF-AES](./ECDH-KDF-AES/README.md) | ECDH key exchange, HKDF key derivation, then AES encryption |
+| [ATTEST-UNWRAP-KEY](./ATTEST-UNWRAP-KEY/README.md) | Key attestation, then import and use a released key, with external services mocked |
+| [SECURE-KEY-RELEASE](./SECURE-KEY-RELEASE/README.md) | Secure Key Release with Microsoft Azure Attestation and Azure Key Vault |
+
+## Prerequisites
+
+Before running any samples under this folder, you should perform the following to set up the VM:
+
+1. [Set up AziHSM related driver and library](../../README.md#getting-started)
+2. Install the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0), or a newer SDK that can target `net8.0`
+3. Optionally, [install Visual Studio](https://visualstudio.microsoft.com/vs/community/) if you prefer to work in an IDE
+
+**SECURE-KEY-RELEASE**
+
+For this sample, additional setup is required. [See its README](./SECURE-KEY-RELEASE/README.md#prerequisites).
+
+## Build the samples
+
+1. Obtain this sample's source code by `git clone` or download source.
+2. Build the solution, using either a Debug or a Release build:
+
+   ```powershell
+   cd samples\csharp
+   dotnet build csharp-samples.sln -c Release
+   ```
+
+   You can also open `csharp-samples.sln` in Visual Studio and build from there.
+
+All projects target `net8.0-windows` on `x64`, because AziHSM exposes a 64-bit Windows key storage provider.
+
+## Run a sample
+
+Each sample builds an executable named after its folder. To build and run in one step:
+
+```powershell
+cd samples\csharp
+dotnet run --project QUERY-PROPERTIES -c Release
+```
+
+Or run the built executable from the project's output folder:
+
+```powershell
+.\QUERY-PROPERTIES.exe
+```
+
+Samples that accept arguments document them in their own README.
+
+## Calling AziHSM from .NET
+
+AziHSM exposes its functionality through the Windows [NCrypt API](https://learn.microsoft.com/en-us/windows/win32/api/ncrypt/), the user-mode half of Cryptography API: Next Generation (CNG). There are two ways to reach it from .NET.
+
+### Using the managed CNG classes
+
+`System.Security.Cryptography` ships managed wrappers over CNG. Selecting the AziHSM is a matter of naming its key storage provider:
+
+```csharp
+var provider = new CngProvider("Microsoft Azure Integrated HSM Key Storage Provider");
+
+var parameters = new CngKeyCreationParameters { Provider = provider };
+parameters.Parameters.Add(
+    new CngProperty("ECCCurveName", Encoding.Unicode.GetBytes("nistP256"), CngPropertyOptions.None));
+
+// AziHSM does not support named keys, so the key name is null.
+using CngKey key = CngKey.Create(CngAlgorithm.ECDsaP256, null, parameters);
+
+using var ecdsa = new ECDsaCng(key);
+byte[] signature = ecdsa.SignData(data);
+```
+
+This is the most convenient option, and is a good fit for straightforward ECDSA and RSA work.
+
+### Calling the NCrypt API directly
+
+The managed classes cover only part of CNG, and several AziHSM capabilities fall outside that subset:
+
+* **Device-generated AES-GCM IVs.** AziHSM generates the IV inside the device and returns it to the caller.
+* **AES-XTS.** No managed class routes an AES-XTS operation through a key storage provider.
+* **Key attestation.** `NCryptCreateClaim` has no managed equivalent.
+* **Wrapped key import.** Importing a PKCS#11 wrapped key blob requires `NCryptImportKey` with a parameter list.
+* **Derived key import.** `NCryptDeriveKey` on AziHSM returns a device-internal key handle rather than raw key material, which then has to be re-imported.
+
+These samples therefore call NCrypt directly, so that every AziHSM capability can be demonstrated. The standard Windows API declarations, structures, constants and safe handles are generated at build time by [CsWin32](https://microsoft.github.io/CsWin32/); no CsWin32 runtime dependency is deployed with the samples.
+
+The supporting code lives in [AziHsm.Samples.Common](./AziHsm.Samples.Common), and is shared by all of the samples:
+
+| File | Contents |
+|---|---|
+| [AziHsmConstants.cs](./AziHsm.Samples.Common/AziHsmConstants.cs) | AziHSM provider name, property names and device limits |
+| [NativeMethods.txt](./AziHsm.Samples.Common/NativeMethods.txt) | The Windows APIs, structures and constants generated by CsWin32 |
+| [NativeMethods.json](./AziHsm.Samples.Common/NativeMethods.json) | CsWin32 generation settings |
+| [Interop/NCryptHelpers.cs](./AziHsm.Samples.Common/Interop/NCryptHelpers.cs) | Helpers for the most common NCrypt calls |
+| [Interop/NCryptStatus.cs](./AziHsm.Samples.Common/Interop/NCryptStatus.cs) | Status code inspection and `NCryptException` |
+| [Utils/CryptoUtils.cs](./AziHsm.Samples.Common/Utils/CryptoUtils.cs) | Common crypto operations that use the NCrypt API |
+| [Utils/RsaWrapUtils.cs](./AziHsm.Samples.Common/Utils/RsaWrapUtils.cs) | PKCS#11 wrapped key blob construction |
+| [Utils/SampleUtils.cs](./AziHsm.Samples.Common/Utils/SampleUtils.cs) | General helpers, and attestation claim parsing |
+
+Three conventions are worth knowing before reading that code:
+
+**Handles.** CsWin32 generates an NCrypt `SafeHandle` wrapper that the samples use for provider, key and secret handles. It releases each object with `NCryptFreeObject` and keeps handles alive across native calls. Declare handles with `using` so that they are released promptly; keys occupy storage on the device, and the device can only hold a limited number at once.
+
+**Buffers.** Most NCrypt functions that return data are called twice: once with a null output buffer to learn the required size, and once to retrieve the data. The number of bytes actually written can be smaller than the buffer, so the result is always trimmed to the reported length.
+
+## Debug / Logging
+
+### Understand status code returned by NCrypt API
+
+AziHSM exposes its functions via NCrypt API, and reports error by returning an existing `SECURITY_STATUS` (`HRESULT`) error code.
+
+The samples surface that code on the exception they throw, alongside the name of the call that failed:
+
+```
+Failed NCryptOpenStorageProvider for 'Microsoft Azure Integrated HSM Key Storage Provider'.
+NCrypt returned 0xC0000225: ...
+```
+
+You could lookup the error code and have a general idea about what went wrong. `NCryptException.Status` exposes the raw value if you need to branch on it.
+
+### Get AziHSM KSP logs
+
+You could get more detailed logging from AziHSM, which would include more details about why an error is thrown.
+
+See [EventTracing.md](../../docs/EventTracing.md)
+
+### Get Sample app logs
+
+The sample apps print to stdout, and report errors by throwing. Each sample catches at the top level, prints the message to stderr, and exits with `0` on success or `1` on failure.
+
+To see the full stack trace while debugging, print `ex` instead of `ex.Message` in the sample's `catch` block:
+
+```csharp
+catch (Exception ex)
+{
+    Console.Error.WriteLine($"Unhandled exception in QUERY-PROPERTIES sample: {ex}");
+    return 1;
+}
+```

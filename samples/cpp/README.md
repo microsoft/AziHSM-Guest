@@ -1,6 +1,8 @@
 # Samples
 The samples in this directory demonstrate how to utilize AziHSM in your application. They are written in C++.
 
+> The same scenarios are also available in C#. See [../csharp/README.md](../csharp/README.md).
+
 ## Prerequisites
 
 Before running any samples under this folder, you should perform the following to set up the VM:

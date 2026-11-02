@@ -1,0 +1,12 @@
+# Copyright (C) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License.
+
+[package]
+name = "rsa-sign-verify"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "KMPP × AziHSM sample: RSA sign/verify (PKCS#1 v1.5 + PSS)"
+
+[dependencies]
+kmpp-samples-common = { path = "../common" }
