@@ -1,0 +1,15 @@
+<!-- Copyright (c) Microsoft Corporation. All rights reserved. -->
+<!-- Licensed under the MIT License. -->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>AziHsm.Samples.AesGcm</RootNamespace>
+    <AssemblyName>AES-GCM-ENCRYPT-DECRYPT</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AziHsm.Samples.Common\AziHsm.Samples.Common.csproj" />
+  </ItemGroup>
+
+</Project>

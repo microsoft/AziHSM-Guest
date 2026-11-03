@@ -1,0 +1,28 @@
+# Copyright (C) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License.
+
+[package]
+name = "kmpp-samples-common"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Shared helpers for the KMPP × AziHSM samples"
+
+[lib]
+name = "kmpp_sample_common"
+path = "src/lib.rs"
+
+# The OpenSSL work uses the `openssl` crate only the two KMPP client entry points are reached via a thin libkmpp
+# `dlopen` shim. All of this is Linux-only, so the dependencies are gated on
+# `target_os = "linux"`: other targets build the samples' non-Linux stubs with no
+# OpenSSL/KMPP dependency at all.
+[target.'cfg(target_os = "linux")'.dependencies]
+# OpenSSL 3.0 via the maintained bindings (LibCtx, Provider, PKey, X509, PKCS12,
+# sign/verify, asym cipher). openssl-sys links libssl/libcrypto for us.
+openssl = "0.10.66"
+openssl-sys = "0.9"
+# `ForeignType::{from_ptr, as_ptr}` to bridge the raw EVP_PKEY / OSSL_LIB_CTX the
+# KMPP client returns/consumes into the `openssl` crate types.
+foreign-types = "0.3"
+# dlopen/dlsym/dlerror + RTLD_* to load libkmpp.so at runtime.
+libc = "0.2"

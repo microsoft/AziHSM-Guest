@@ -17,9 +17,14 @@ This Secure Key Release sample involves following Azure resources:
 
 #### Create Microsoft Azure Attestation
 
+> A custom MAA endpoint is required  
+> AziHSM Attestation is only enabled in custom endpoint  
+> As this allows customers to define custom policy  
+> A baseline policy is provided by default
+
 The Microsoft Azure Attestation will aid attestation of AziHSM's import key, and produce a JSON Web Token so Azure Key Vault could release a key.
 
-All commands in this article should be performed using Azure CLI. You can either open a cloud shell on portal.azure.com, or [install Azure CLI](https://learn.microsoft.com/en-us/cli/azure/?view=azure-cli-latest).
+Azure CLI is required. You can either open a cloud shell on portal.azure.com, or [install Azure CLI](https://learn.microsoft.com/en-us/cli/azure/?view=azure-cli-latest).
 
 Next, create MAA endpoint resource:
 
