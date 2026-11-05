@@ -21,4 +21,20 @@ Both suites cover the same scenarios:
 
 See each language's README for prerequisites and build instructions.
 
+## Linux samples (KMPP)
+
+On Linux, applications reach AziHSM through [KMPP](https://github.com/microsoft/KMPP)'s OpenSSL 3
+provider. These samples are organized as `<language>/kmpp/`:
+
+| Language | Location | Notes |
+|---|---|---|
+| Rust | [`rust/kmpp/`](./rust/kmpp/) | Built with Cargo; full KMPP guide (how it works, prerequisites, constraints) |
+| C++ | [`cpp/kmpp/`](./cpp/kmpp/) | Built with `make`; C++17 + OpenSSL 3 C API (lives under `cpp/` next to the KSP samples) |
+
+| Sample | Rust | C++ | Scenario |
+|---|---|---|---|
+| rsa-encrypt-decrypt / RSA-ENCRYPT-DECRYPT | ✓ | ✓ | RSA-OAEP: encrypt with the public key, decrypt inside AziHSM |
+| rsa-sign-verify / RSA-SIGN-VERIFY | ✓ | ✓ | RSA PKCS#1 v1.5 and PSS: sign inside AziHSM, verify with the public key |
+| ecdsa-sign-verify | ✓ | | ECDSA P-256/384/521: sign inside AziHSM, verify with the public key |
+
 > Looking for Python? The [`azure_sdk/python/`](../azure_sdk/python/) directory shows how to deploy an AziHSM-enabled VM with the Azure SDK. It does not perform crypto operations against the device.

@@ -9,8 +9,9 @@
 #   ./run-all.sh
 #
 # Env knobs:
-#   SUDO=              run without sudo (default: sudo — the device is root-only)
-#   OPENSSL_CONF       defaults to /dev/null to keep output clean
+#   SUDO=              run without sudo (default: sudo — /dev/azihsm0 needs root or the azihsm group)
+#   OPENSSL_CONF       not needed; if set (e.g. /dev/null to rule out a custom openssl.cnf),
+#                      it is forwarded to each sample through sudo
 #   CARGO_TARGET_DIR   honored for both the build and the binary path
 
 # `set -e` aborts on an unchecked failure (notably `cargo build` below, so a
@@ -22,7 +23,6 @@ set -euo pipefail
 cd "$(dirname "$(readlink -f "$0")")"
 
 SUDO="${SUDO-sudo}"
-export OPENSSL_CONF="${OPENSSL_CONF:-/dev/null}"
 BIN="${CARGO_TARGET_DIR:-target}/release"
 
 echo "== build =="
@@ -31,7 +31,12 @@ cargo build --release
 run() { # <binary>
     echo
     echo "== $1 =="
-    $SUDO env OPENSSL_CONF="$OPENSSL_CONF" "$BIN/$1"
+    # sudo resets the environment, so OPENSSL_CONF is forwarded explicitly when it is set.
+    if [[ -n "${OPENSSL_CONF:-}" ]]; then
+        $SUDO env OPENSSL_CONF="$OPENSSL_CONF" "$BIN/$1"
+    else
+        $SUDO "$BIN/$1"
+    fi
 }
 
 fail=0

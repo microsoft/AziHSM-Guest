@@ -3,6 +3,10 @@ The samples in this directory demonstrate how to utilize AziHSM in your applicat
 
 > The same scenarios are also available in C#. See [../csharp/README.md](../csharp/README.md).
 
+> **Linux / KMPP:** the [`kmpp/`](./kmpp/README.md) subfolder holds separate Linux samples (C++17,
+> built with `make`) that reach AziHSM through KMPP's OpenSSL provider. They are not part of
+> `cpp-samples.sln`; the rest of this README applies to the Windows KSP samples only.
+
 ## Prerequisites
 
 Before running any samples under this folder, you should perform the following to set up the VM:

@@ -1,0 +1,9 @@
+# Shell scripts and Makefiles must keep LF endings so they run on Linux (the samples' target).
+*.sh     text eol=lf
+Makefile text eol=lf
+*.mk     text eol=lf
+
+# Normalize the rest of the samples' text files to LF as well.
+*.cpp text eol=lf
+*.h   text eol=lf
+*.md  text eol=lf

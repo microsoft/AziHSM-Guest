@@ -12,7 +12,7 @@ and run one crypto algorithm end to end. Every private-key operation is routed t
 **the private key never leaves the isolated environment of the AziHSM, and thus is never seen by
 the VM nor the application.**
 
-They are the KMPP counterpart of the Windows KSP/CNG C++ samples in [`../cpp`](../cpp): those reach
+They are the KMPP counterpart of the Windows KSP/CNG C++ samples in [`../../cpp`](../../cpp): those reach
 AziHSM through the Windows NCrypt API, while these reach it through KMPP’s OpenSSL provider on Linux.
 
 ## Samples
@@ -26,31 +26,38 @@ AziHSM through the Windows NCrypt API, while these reach it through KMPP’s Ope
 Each sample is an **independent binary** in its own folder (with its own `README.md`); they share
 only the `common/` helper library. This mirrors the Windows KSP `cpp` samples' layout.
 
-## How it Works
+**C++ versions** of the RSA samples (same scenarios, keys and flow, written against the OpenSSL 3 C
+API from C++17) live in [`samples/cpp/kmpp`](../../cpp/kmpp) — see its [README](../../cpp/kmpp/README.md).
 
-Each sample follows the same path: 
-- a key is imported into KMPP and loaded back as a provider-backed `EVP_PKEY`; 
-- private-key `EVP_*` calls dispatch through `kmppprovider` → **the KMPP service** → **AziHSM**, 
-while public-key verification and the SHA-256 digest come from OpenSSL’s `default` provider.
+## How it Works
 
 ```mermaid
 flowchart LR
-    App["sample app<br/>(Rust binary)"]
-    Kmpp["libkmpp.so<br/>(dlopen)"]
-    SSL["OpenSSL<br/>libcrypto"]
-    Prov["kmppprovider"]
-    Deflt["default<br/>provider"]
-    Svc["KMPP service"]
-    HSM["AziHSM"]
+    subgraph Proc["sample app process"]
+        App["sample app<br/>(Rust binary)"]
+        SSL["OpenSSL<br/>libcrypto"]
+        Deflt["default<br/>provider"]
+        Prov["kmppprovider"]
+        Kmpp["libkmpp.so.1<br/>(loaded at run time)"]
+        Backend["KMPP AziHSM backend<br/>+ libazihsm_api_resilient"]
+    end
+    subgraph Dev["AziHSM device"]
+        HSM["AziHSM<br/>(private key stays here)"]
+    end
 
     App -->|"import PFX / load key<br/>KeyIso_*"| Kmpp
     App -->|"EVP_* crypto"| SSL
+    SSL -->|"verify, encrypt, SHA-256"| Deflt
     SSL -->|"private-key ops"| Prov
-    SSL -->|"verify + SHA-256 digest"| Deflt
-    Kmpp -. GDBus .-> Svc
-    Prov -. GDBus .-> Svc
-    Svc --> HSM
+    Prov --> Kmpp
+    Kmpp --> Backend
+    Backend -. "/dev/azihsm0" .-> HSM
 ```
+
+Everything on the host runs **inside the sample's own process**: for AziHSM keys there is no KMPP
+service or IPC hop. A key is imported into KMPP and loaded back as a provider-backed `EVP_PKEY`;
+private-key `EVP_*` calls go `kmppprovider` → `libkmpp` → the AziHSM backend → the device, while
+public-key operations and the SHA-256 digest stay in OpenSSL's `default` provider.
 
 ### RSA-OAEP encrypt / decrypt
 
@@ -67,25 +74,22 @@ backend applies SHA-1 on decrypt (see [Constraints](#constraints)).
 ```mermaid
 sequenceDiagram
     participant App as sample app
-    participant Kmpp as libkmpp
     participant Prov as kmppprovider
-    participant Svc as KMPP service
+    participant Kmpp as libkmpp + AziHSM backend
     participant H as AziHSM
 
     App->>Kmpp: import PFX (ENCRYPT usage)
-    Kmpp->>Svc: import key material
-    Svc->>H: materialize private key
-    H-->>Svc: KeyID (key stays in HSM)
-    Svc-->>Kmpp: opaque KeyID
+    Kmpp->>H: import wrapped private key
+    H-->>Kmpp: key handle (key stays in HSM)
     Kmpp-->>App: opaque KeyID
     App->>Kmpp: load provider key (KeyID)
     Kmpp-->>App: EVP_PKEY (kmppprovider-backed)
-    App->>App: RSA-OAEP encrypt with public key (in-process)
+    App->>App: RSA-OAEP encrypt with public key
     App->>Prov: RSA-OAEP decrypt (private key)
-    Prov->>Svc: decrypt request
-    Svc->>H: private-key decrypt (OAEP / SHA-1)
-    H-->>Svc: plaintext
-    Svc-->>Prov: plaintext
+    Prov->>Kmpp: decrypt request
+    Kmpp->>H: private-key decrypt (OAEP / SHA-1)
+    H-->>Kmpp: plaintext
+    Kmpp-->>Prov: plaintext
     Prov-->>App: plaintext
     App->>App: verify plaintext == original
 ```
@@ -109,18 +113,18 @@ length.
 sequenceDiagram
     participant App as sample app
     participant Prov as kmppprovider
-    participant Svc as KMPP service
+    participant Kmpp as libkmpp + AziHSM backend
     participant H as AziHSM
     participant Def as default provider
 
     App->>App: import (SIGN) + load EVP_PKEY, derive public key
     loop PKCS#1 v1.5, then PSS
         App->>Prov: EVP_DigestSign (SHA-256, object-anchored)
-        Prov->>Svc: sign digest
-        Svc->>H: private-key signature
-        H-->>Svc: signature
-        Svc-->>Prov: signature
-        Prov-->>App: DER signature
+        Prov->>Kmpp: sign digest
+        Kmpp->>H: private-key signature
+        H-->>Kmpp: signature
+        Kmpp-->>Prov: signature
+        Prov-->>App: signature
         App->>Def: EVP_DigestVerify with public key
         Def-->>App: valid / invalid
     end
@@ -142,16 +146,16 @@ produced inside AziHSM; verification uses the derived public key in the `default
 sequenceDiagram
     participant App as sample app
     participant Prov as kmppprovider
-    participant Svc as KMPP service
+    participant Kmpp as libkmpp + AziHSM backend
     participant H as AziHSM
     participant Def as default provider
 
     App->>App: import (SIGN) + load EVP_PKEY, derive public key
     App->>Prov: EVP_DigestSign (ECDSA / SHA-256)
-    Prov->>Svc: sign digest
-    Svc->>H: private-key signature
-    H-->>Svc: signature
-    Svc-->>Prov: signature
+    Prov->>Kmpp: sign digest
+    Kmpp->>H: private-key signature
+    H-->>Kmpp: signature
+    Kmpp-->>Prov: signature
     Prov-->>App: DER signature
     App->>Def: EVP_DigestVerify with public key
     Def-->>App: valid / invalid
@@ -163,21 +167,20 @@ sequenceDiagram
 
 - **An AziHSM-enabled VM (TVM).** The samples run against real hardware:
   a VM that exposes the AziHSM device (e.g. `/dev/azihsm0`) with the `azihsm` kernel driver
-  loaded — see [How To Deploy](../../docs/HowToDeploy.md). For device-free development, install the
-  **mock**-capable SDK runtime instead (see the AziHSM SDK runtime bullet below).
+  loaded — see [How To Deploy](../../../docs/HowToDeploy.md). The AziHSM runtime has no in-process
+  mock, so the crypto paths need a real device.
 - **Linux** (Azure Linux 3 / Mariner or similar). On any other OS the binaries build and parse
   arguments but report that the sample requires Linux.
 - **KMPP installed** — the client library `libkmpp.so.1` (loaded at runtime) and the
-  `kmppprovider` OpenSSL provider, plus the KMPP **service running**.
+  `kmppprovider` OpenSSL provider.
 - **AziHSM selected as the KMPP isolation solution** —
   `/var/opt/msft/ap/data/kmpp/config.cnf` → `keyiso_solution_type = azihsm`.
-- **AziHSM runtimei library** — the `libazihsm_api_resilient.so` library installed via the `libazihsmr` or `libazihsmr-devel` package.
+- **AziHSM runtime** — `libazihsm_api_resilient.so` present at the path KMPP was built with
+  (default `/usr/lib/libazihsm_api_resilient.so.1`), from the `libazihsmr` package.
 - **Rust toolchain** (`cargo`), **OpenSSL 3.0 development libraries**, and **`pkg-config`** — the
   samples use the `openssl` crate, whose `openssl-sys` build locates OpenSSL via `pkg-config`
   (e.g. `sudo tdnf install -y gcc openssl-devel pkgconf`). The KMPP headers are *not* needed — the
   client is loaded via `dlopen`.
-
-> (§1–§5) for installing KMPP, starting the service, and selecting AziHSM.
 
 ## Test keys
 
@@ -213,21 +216,21 @@ want:
 
 ```bash
 # RSA-OAEP encrypt/decrypt (ENCRYPT-usage RSA key) — optional size: 2048 (default) | 3072 | 4096:
-sudo env OPENSSL_CONF=/dev/null ./target/release/rsa-encrypt-decrypt
-sudo env OPENSSL_CONF=/dev/null ./target/release/rsa-encrypt-decrypt 4096
+sudo ./target/release/rsa-encrypt-decrypt
+sudo ./target/release/rsa-encrypt-decrypt 4096
 
 # RSA sign/verify — PKCS#1 v1.5 and PSS (SIGN-usage RSA key) — optional size: 2048 | 3072 | 4096:
-sudo env OPENSSL_CONF=/dev/null ./target/release/rsa-sign-verify 3072
+sudo ./target/release/rsa-sign-verify 3072
 
 # ECDSA sign/verify (SIGN-usage EC key) — optional curve: p256 (default) | p384 | p521:
-sudo env OPENSSL_CONF=/dev/null ./target/release/ecdsa-sign-verify p384
+sudo ./target/release/ecdsa-sign-verify p384
 ```
 
 To run just one from scratch, build only it and run it — e.g. ECDSA on P-521:
 
 ```bash
 cargo build --release -p ecdsa-sign-verify
-sudo env OPENSSL_CONF=/dev/null ./target/release/ecdsa-sign-verify p521
+sudo ./target/release/ecdsa-sign-verify p521
 ```
 
 **Optional convenience:** `./run-all.sh` builds and runs all three, exiting non-zero if any fails
@@ -244,11 +247,11 @@ Example output (`rsa-encrypt-decrypt`):
   imported PFX -> KeyID (isolated in AziHSM); import ret=1
   loaded KeyID via KMPP provider -> EVP_PKEY (2048 bits)
 [step 2] encrypt with public key (RSA-OAEP)
-  encrypted 43 bytes -> 256 bytes ciphertext
+  encrypted 33 bytes -> 256 bytes ciphertext
   ciphertext (256 bytes):
     ...
 [step 3] decrypt with private key -> KMPP -> AziHSM
-  decrypted -> 43 bytes
+  decrypted -> 33 bytes
 [step 4] verify round-trip
 
 [PASS] RSA-OAEP round-trip verified — private-key op ran inside AziHSM.
@@ -260,9 +263,10 @@ Notes on the run command:
   to it and drop `sudo` (`ls -l /dev/azihsm0`).
 - **`sudo env VAR=… cmd`**, not `VAR=… sudo` or `sudo -E` — `sudo` resets the environment, so a
   leading `VAR=…` is dropped and `sudo -E` fails under a hardened sudoers policy.
-- **`OPENSSL_CONF=/dev/null`** is a demo convenience that keeps output clean by disabling the
-  system OpenSSL config. The samples load `default` + `kmppprovider` explicitly, so they also work
-  without it. **Never** carry `OPENSSL_CONF=/dev/null` into a production/FIPS deployment.
+- **No OpenSSL configuration needed.** The samples create their own OpenSSL library context and
+  load `default` + `kmppprovider` explicitly, so they do not depend on the system `openssl.cnf`.
+  If a customized `openssl.cnf` seems to interfere, rerun with `sudo env OPENSSL_CONF=/dev/null …`
+  to ignore it — for diagnosis only, **never** in a production/FIPS deployment.
 - **Benign KMPP log lines.** At startup you may see
   `kmpp_log [error] … kmpp_enable_by_default not found in config file …`. That is KMPP's client
   init reading the optional default-provider gate, which these samples do not set (they load
@@ -308,7 +312,7 @@ require a device and are exercised by running the samples.
 ## Layout
 
 ```
-kmpp/
+rust/kmpp/
 ├── Cargo.toml               # workspace umbrella (builds all — the KSP `.sln` analog)
 ├── run-all.sh               # optional smoke test: build + run all three
 ├── common/                  # shared helper library (the KSP `include/` analog)
@@ -335,7 +339,8 @@ kmpp/
 
 ## Learning Resources
 
-* [AziHSM-Guest](../../README.md) and its [docs](../../docs) — deploying and installing AziHSM.
-* [Windows KSP/CNG C++ samples](../cpp) — the same crypto scenarios through the NCrypt API.
+* [AziHSM-Guest](../../../README.md) and its [docs](../../../docs) — deploying and installing AziHSM.
+* [Windows KSP/CNG C++ samples](../../cpp) — the same crypto scenarios through the NCrypt API.
+* [KMPP C++ samples](../../cpp/kmpp) — the RSA scenarios above, in C++17 over the OpenSSL 3 C API.
 * [OpenSSL provider concepts](https://docs.openssl.org/master/man7/provider/) — how OpenSSL 3.0
   routes operations to providers such as `kmppprovider`.

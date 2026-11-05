@@ -22,10 +22,10 @@ embedded in the source (`common/src/testkeys.rs`), and the key size is selected 
 cargo build --release -p rsa-encrypt-decrypt
 
 # default size is RSA-2048:
-sudo env OPENSSL_CONF=/dev/null ./target/release/rsa-encrypt-decrypt
+sudo ./target/release/rsa-encrypt-decrypt
 
 # or pick a size — 2048 | 3072 | 4096 (2k/3k/4k also accepted):
-sudo env OPENSSL_CONF=/dev/null ./target/release/rsa-encrypt-decrypt 4096
+sudo ./target/release/rsa-encrypt-decrypt 4096
 ```
 
 The optional argument selects the key size (default `2048`); RSA-OAEP decrypt uses an

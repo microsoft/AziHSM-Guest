@@ -2479,16 +2479,16 @@ select_kmpp_azurelinux_packages() {
         if rpm -q -- "${package}" >/dev/null 2>&1; then
             transaction="reinstall"
         fi
-        # Restrict the download-only transaction to the same prod/ms-oss
-        # repository used by the availability check, including dependencies.
-        if ! tdnf "--disablerepo=*" "--enablerepo=${repository_id}" --downloadonly \
+        # Pin KMPP artifacts to prod/ms-oss; the later local-RPM install
+        # resolves dependencies from all enabled repositories.
+        if ! tdnf "--disablerepo=*" "--enablerepo=${repository_id}" --downloadonly --nodeps \
             "--downloaddir=${directory}" "${transaction}" -y \
             "${package}"; then
             panic "failed to download Azure Linux KMPP package '${package}' from prod/ms-oss"
         fi
     done
 
-    # Select only requested KMPP artifacts; tdnf may also download missing dependencies.
+    # Select only requested KMPP artifacts downloaded without dependencies.
     shopt -s nullglob
     runtime_files=("${directory}"/kmpp-[0-9]*.rpm)
     if [[ "${KMPP_INSTALL_DEV}" == true ]]; then
