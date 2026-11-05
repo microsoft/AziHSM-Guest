@@ -99,8 +99,8 @@ impl ProviderCtx {
             .map_err(|e| format!("failed to load OpenSSL 'default' provider: {}", os_err(e)))?;
         let kmpp = Provider::load(Some(&lib_ctx), "kmppprovider").map_err(|e| {
             format!(
-                "failed to load 'kmppprovider' (ensure kmppprovider.so is on OpenSSL's module \
-                 path, or set KMPP_PROVIDER_DIR / LD_LIBRARY_PATH): {}",
+                "failed to load 'kmppprovider' (install the KMPP OpenSSL provider, or set \
+                 OPENSSL_MODULES to the directory that holds kmppprovider.so): {}",
                 os_err(e)
             )
         })?;

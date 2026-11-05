@@ -21,10 +21,10 @@ while the SHA-256 digest resolves from the default provider. The key size is sel
 cargo build --release -p rsa-sign-verify
 
 # default size is RSA-2048:
-sudo env OPENSSL_CONF=/dev/null ./target/release/rsa-sign-verify
+sudo ./target/release/rsa-sign-verify
 
 # or pick a size — 2048 | 3072 | 4096 (2k/3k/4k also accepted):
-sudo env OPENSSL_CONF=/dev/null ./target/release/rsa-sign-verify 3072
+sudo ./target/release/rsa-sign-verify 3072
 ```
 
 The optional argument selects the key size (default `2048`); a **SIGN**-usage flag is applied on

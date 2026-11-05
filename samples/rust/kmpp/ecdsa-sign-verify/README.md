@@ -15,15 +15,15 @@ The curve is selected at runtime (P-256 / P-384 / P-521), each backed by its own
 > See the top-level [README](../README.md) for prerequisites and the one-time device setup.
 
 ```bash
-# from the samples/kmpp directory:
+# from the samples/rust/kmpp directory:
 cargo build --release -p ecdsa-sign-verify
 
 # default curve is P-256:
-sudo env OPENSSL_CONF=/dev/null ./target/release/ecdsa-sign-verify
+sudo ./target/release/ecdsa-sign-verify
 
 # or pick a curve — p256 | p384 | p521:
-sudo env OPENSSL_CONF=/dev/null ./target/release/ecdsa-sign-verify p384
-sudo env OPENSSL_CONF=/dev/null ./target/release/ecdsa-sign-verify p521
+sudo ./target/release/ecdsa-sign-verify p384
+sudo ./target/release/ecdsa-sign-verify p521
 ```
 
 The optional argument selects the curve (default `p256`); a **SIGN**-usage flag is applied on
