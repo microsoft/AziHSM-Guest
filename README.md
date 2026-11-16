@@ -9,9 +9,8 @@ Here, you'll find:
 * [`samples/`](./samples/) - Small sample applications that demonstrate usage of AziHSM.
 * [`scripts/`](./scripts/) - Helpful shell scripts for installing and working with AziHSM.
 
-Azure Integrated HSM (AziHSM) is generally available on Windows.
-Linux availability is under active development.
-See the [Supported SKUs](docs/SupportedSKUs.md) page for more information on availability across the various Azure VM SKUs.
+Azure Integrated HSM (AziHSM) supports Windows and Linux VMs.
+See the [Supported Images](./docs/SupportedImages.md) and [Supported SKUs](./docs/SupportedSKUs.md) pages for supported operating system images and Azure VM sizes.
 
 ## What is AziHSM?
 
@@ -26,16 +25,24 @@ Please see the [How To Deploy](./docs/HowToDeploy.md) guide to learn how to depl
 
 ### Installing AziHSM Dependencies
 
-To utilize the AziHSM on your Azure VM, the necessary dependencies must be installed.
-Please see these installation guides for more information:
+Install the dependencies for your VM's operating system:
 
-* [Windows Install](./docs/InstallWindows.md)
-* [Linux Install](./docs/InstallLinux.md)
+| Platform | Dependencies | Installation guide |
+|---|---|---|
+| Windows | AziHSM device driver, Key Storage Provider (KSP), and SymCrypt | [Windows Install](./docs/InstallWindows.md) |
+| Linux | AziHSM device driver, API library, and KMPP for OpenSSL integration | [Linux Install](./docs/InstallLinux.md) |
+
+Both guides include installation verification and uninstall instructions.
+On Linux, the installer attempts to install [KMPP (Key Management and Protection Platform)](https://github.com/microsoft/KMPP) by default and requires a package set with the AziHSM backend.
 
 ### Running the Samples
 
 To better understand how to use AziHSM in your applications, this repository hosts sample applications for demonstration.
-Please see the documentation within the [samples directory](./samples/).
+
+* **Windows:** [C++](./samples/cpp/) and [C#](./samples/csharp/) samples use the AziHSM KSP through Windows CNG/NCrypt.
+* **Linux:** [Rust](./samples/rust/kmpp/) and [C++](./samples/cpp/kmpp/) samples use KMPP's OpenSSL 3 provider for RSA encryption/decryption and signing/verification. The Rust samples also demonstrate ECDSA signing/verification.
+
+See the [samples directory](./samples/) for the full list of scenarios and each sample's prerequisites and build instructions.
 
 ## Questions & Feedback
 
@@ -50,4 +57,3 @@ This project may contain trademarks or logos for projects, products, or services
 Authorized use of Microsoft trademarks or logos is subject to and must follow Microsoft’s Trademark & Brand Guidelines.
 Use of Microsoft trademarks or logos in modified versions of this project must not cause confusion or imply Microsoft sponsorship.
 Any use of third-party trademarks or logos are subject to those third-party’s policies.
-
