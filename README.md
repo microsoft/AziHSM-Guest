@@ -10,7 +10,6 @@ Here, you'll find:
 * [`scripts/`](./scripts/) - Helpful shell scripts for installing and working with AziHSM.
 
 Azure Integrated HSM (AziHSM) supports Windows and Linux VMs.
-AziHSM is generally available on Windows; Linux support includes Azure Linux 3, Ubuntu 22.04, and Ubuntu 24.04.
 See the [Supported Images](./docs/SupportedImages.md) and [Supported SKUs](./docs/SupportedSKUs.md) pages for supported operating system images and Azure VM sizes.
 
 ## What is AziHSM?
@@ -35,7 +34,6 @@ Install the dependencies for your VM's operating system:
 
 Both guides include installation verification and uninstall instructions.
 On Linux, the installer attempts to install [KMPP (Key Management and Protection Platform)](https://github.com/microsoft/KMPP) by default and requires a package set with the AziHSM backend.
-KMPP is not enabled as the default system-wide OpenSSL provider; applications must explicitly select it.
 
 ### Running the Samples
 
